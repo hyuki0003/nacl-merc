@@ -1,0 +1,67 @@
+meld:
+
+  seed: 42 #20242025
+  device: "cuda:2"
+  data_dir_path: "data"
+  save_model_checkpoint: "model_checkpoints/meld_specific"
+  save_analysis_path: "save/analysis/meld_specific"
+  log_in_comet: False
+  experiment_in_comet: False
+  n_train_dialogues: 1039
+  n_train_utterances: 9989
+  n_valid_dialogues: 114
+  n_valid_utterances: 1109
+  n_test_dialogues: 280
+  n_test_utterances: 2610
+  modalities: "atv" # ["a", "t", "v", "at", "tv", "av", "atv"]
+
+  unimodal_inference: False
+
+  epochs: 200
+  batch_size: 64
+  scheduler: "cosineLR_linearWarmUp" #"cosineLR_linearWarmUp" # <- [None, stepLR,multistepLR, reduceLR, cyclicLR, cosineLR, cosinLR_linearWarmUp]
+  T: 5 # duration of scheduler
+  learning_rate: 0.0001
+  weight_decay: 0.00001
+
+  hybrid : False
+
+  do_NACL: False
+  do_DGI: False
+  do_CLIP: True
+
+  do_CE: True
+  do_WCE : False
+
+  CLIP_lambda: 0.3
+  DGI_lambda: 0.01
+  NACL_lambda: 0.1
+  topk: 3
+
+  temperature: 0.1
+  max_grad_value: -1
+  dropout: 0.3
+  attention_dropout: 0.
+
+  emotion: "6class"
+  centrality: "degree"
+  act_dropout: 0.0
+  max_nodes: 500
+  max_dist: 22
+  num_edge_dis: 22
+
+  multi_hop_max_dist: 22
+  encoder_layers: 4 # [2, 3, 4] test
+  encoder_attention_heads: 6  # [4, 6, 8] test , i.e., each head's dim [96, 64, 48]
+  encoder_embed_dim: 384 # [256, 384, 512] test
+  ffn_embed_scaler: 4 # encoder_embed_dim * 4
+  sub_classifier_dim: 128
+  num_classes: 7
+
+  edge_type: multi_hop # single_hop, multi_hop
+  share_encoder_input_output_embed: False # share encoder input and output embeddings"
+  no_token_positional_embeddings: False # if set, disables positional embeddings" " (outside self attention)
+  apply_graphormer_init: False # use custom param initialization for Graphormer
+  activation_fn: "gelu"  # activation function to use
+  encoder_normalize_before: True  # apply layernorm before each encoder block
+  pre_layernorm: True
