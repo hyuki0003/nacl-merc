@@ -1,0 +1,72 @@
+iemocap_4:
+
+  seed: 20242025
+  device: "cuda:2"
+  data_dir_path: "data"
+  save_model_checkpoint: "model_checkpoints/iemocap_4"
+  save_analysis_path: "save/analysis/iemocap_4"
+  log_in_comet: False
+  experiment_in_comet: False
+  n_train_dialogues: 108
+  n_train_utterances: 3200
+  n_valid_dialogues: 12
+  n_valid_utterances: 400
+  n_test_dialogues: 31
+  n_test_utterances: 943
+  modalities: "atv" # ["a", "t", "v", "at", "tv", "av", "atv"]
+
+  from_begin: True
+  epochs: 1000
+  batch_size: 12
+  scheduler: "cosineLR" # <- [stepLR,multistepLR, reduceLR, cyclicLR, cosineLR]
+  T: 10 # duration of scheduler
+  learning_rate: 0.00003
+  weight_decay: 0.03
+
+  do_NCE: False
+  do_CE: True
+  do_WCE : False
+  do_VATT: True
+
+  topk: 5
+  at_NCE_lambda: 1
+  tv_NCE_lambda: 1
+  av_NCE_lambda: 1
+  multimodal_MIM_lambda: 1
+  multimodal_NCE_lambda: 1
+
+  MIL_lambda : 0.0
+  temperature: 0.7
+  max_grad_value: -1
+  dropout: 0.3
+  attention_dropout: 0.1
+  emotion: "4class"
+  centrality: "degree"
+  act_dropout: 0.0
+  max_nodes: 500
+  max_dist: 51
+  num_edge_dis: 51
+
+  multi_hop_max_dist: 51
+  encoder_layers: 2 # [2, 3, 4] test
+  encoder_attention_heads: 8  # [4, 6, 8] test , i.e., each head's dim [96, 64, 48]
+  encoder_embed_dim: 512 # [256, 384, 512] test
+  ffn_embed_scaler: 4 # encoder_embed_dim * 4
+  sub_classifier_dim: 128
+  num_classes: 4
+
+  do_mask: False
+  mask_prob_v: 0.4
+  mask_prob_a: 0.2
+  mask_prob_t: 0.2
+
+  specific : False # model-specific or -agnostic encoder
+  do_MIM: False
+
+  edge_type: multi_hop # single_hop, multi_hop
+  share_encoder_input_output_embed: False # share encoder input and output embeddings"
+  no_token_positional_embeddings: False # if set, disables positional embeddings" " (outside self attention)
+  apply_graphormer_init: False # use custom param initialization for Graphormer
+  activation_fn: "gelu"  # activation function to use
+  encoder_normalize_before: True  # apply layernorm before each encoder block
+  pre_layernorm: False

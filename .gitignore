@@ -4,6 +4,7 @@ iemocap_data_split.py
 meld_data_analysis.py
 meld_data_split.py
 plot.py
+main_emotionheart.py
 
 .idea/
 
