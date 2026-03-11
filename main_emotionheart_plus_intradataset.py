@@ -131,6 +131,8 @@ def main(args1, args2):
     opt1.set_parameters(model.parameters(), args1.optimizer)
     sched1 = opt1.get_scheduler(args1.scheduler)
 
+    print(f"args_pretrain:\n{args1}\n")
+    print(f"args_finetune:\n{args2}")
     coach = models.Coach(trainset, trainset, devset, testset, model, opt1, sched1, args1, args2, log)
 
     # Train and eval

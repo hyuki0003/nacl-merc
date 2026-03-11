@@ -24,6 +24,7 @@ class Coach:
         self.args = args
         self.args2 = args2
         self.experiment = logger
+        self.is_intradataset = (args.dataset==args2.dataset)
 
         self.pretrained_model = None
         self.n_max_utterances_pretrain = self.pretrainset.n_max_utterances
@@ -76,6 +77,7 @@ class Coach:
         test_f1s = []
         test_accs = []
         pretrain_losses = []
+        pretrain_dev_losses = []
         train_losses = []
         dev_losses = []
         test_losses = []
@@ -88,17 +90,27 @@ class Coach:
         total_test_time = 0.
         # Train
 
-        if self.args.from_begin:
+        self.experiment.info(
+            f"Learning setup for pretraining - [do_NACL] {self.args.do_NACL}, [do_MAE] {self.args.do_MAE}, [do_VATT] {self.args.do_VATT}")
+        self.experiment.info(
+            f"Learning setup for finetuning - [do_NACL] {self.args2.do_NACL}, [do_VATT] {self.args2.do_VATT}, [do_CE] {self.args2.do_CE}, [do_WCE] {self.args2.do_WCE}")
+
+        pretrained_model_checkpoints = f"./{self.args.save_model_checkpoint}_{self.args2.dataset}/pretrain_{self.args.modalities}_best_model.pt"
+        if self.args.from_begin and not os.path.exists(pretrained_model_checkpoints):
             best_pretrain_loss = 1000
             torch.autograd.set_detect_anomaly(True)
             for epoch in range(1, self.args.epochs+1):
                 pretrain_loss, pretrain_time = self.pretrain_epoch(epoch)
                 total_pretrain_time += pretrain_time
 
+                if self.is_intradataset:
+                    pretrain_dev_loss, _ = self.pretrain_validation_epoch(epoch)
+
                 if self.args.scheduler is not None and self.args.scheduler != "cosineLR_linearWarmUp" and self.args.scheduler != "cosineLR_linearWarmUp2":
                     self.scheduler.step()
                 current_lr = self.opt.get_lr()
-                print(f"Epoch {epoch + 1}/{self.args.epochs}, LR: {current_lr:.8f}, Loss: {pretrain_loss:.4f}")
+                print(f"Epoch {epoch + 1}/{self.args.epochs}, LR: {current_lr:.8f}, PreTrain Loss: {pretrain_loss:.4f}" + 
+                      (f", PreDev Loss: {pretrain_dev_loss:.4f}" if self.is_intradataset else ""))
 
                 self.pretrainset.set_batch()
                 if self.args.experiment_in_comet:
@@ -108,20 +120,26 @@ class Coach:
                 if pretrain_loss < best_pretrain_loss:
                     best_pretrain_loss = pretrain_loss
 
-                    torch.save(self.model,
-                               f"./{self.args.save_model_checkpoint}_{self.args2.dataset}/pretrain_{self.args.modalities}_best_model.pt")
+                    torch.save(self.model, pretrained_model_checkpoints)
 
                 self.experiment.info(f"[best_pretrain_loss]:{best_pretrain_loss}, [epoch]:{epoch}")
 
+                if self.is_intradataset:
+                    pretrain_dev_losses.append(pretrain_dev_loss)
+                    
                 save_loss_plot_path = os.path.join(os.getcwd(), self.args.save_analysis_path+'_'+self.args2.dataset,'pretrain_'+self.args.modalities+"_loss_plot.png")
-                utils.plot_and_save_loss(pretrain_losses, pretrain_losses, pretrain_losses, filename=save_loss_plot_path)
+                
+                # plot pretraining and dev losses if intradataset
+                if self.is_intradataset:
+                    utils.plot_and_save_loss(pretrain_losses, pretrain_dev_losses, pretrain_losses, filename=save_loss_plot_path)
+                else:
+                    utils.plot_and_save_loss(pretrain_losses, pretrain_losses, pretrain_losses, filename=save_loss_plot_path)
 
-        self.experiment.info(f"Pretrain_time: {total_pretrain_time} / Average pretrain_time: {total_pretrain_time/self.args.epochs}")
+        self.experiment.info(f"Pretrain_time: {total_pretrain_time} sec / Average pretrain_time: {total_pretrain_time/self.args.epochs} sec")
 
-        pretrained_encoder_path = f"./{self.args.save_model_checkpoint}_{self.args2.dataset}/pretrain_{self.args.modalities}_best_model.pt"
         # pretrained_encoder_path =  f"./{self.args.save_model_checkpoint}_{self.args2.dataset}/pretrain_atv_best_model_without_MAEloss.pt"
 
-        self.model = FinetuneModel(self.args2, pretrained_encoder_path = pretrained_encoder_path, encoder_embed_dim = self.args.encoder_embed_dim, modalities=self.args.modalities, intra_dataset=(self.args.dataset==self.args2.dataset))
+        self.model = FinetuneModel(self.args2, pretrained_encoder_path = pretrained_model_checkpoints, encoder_embed_dim = self.args.encoder_embed_dim, modalities=self.args.modalities, intra_dataset=(self.args.dataset==self.args2.dataset))
         self.model.to(self.args2.device)
         self.opt = models.Optim(float(self.args2.learning_rate), int(self.args2.T), float(self.args2.max_grad_value),
                                 float(self.args2.weight_decay), int(self.args2.epochs), int(self.args2.n_finetune_dialogues//self.args2.batch_size))
@@ -148,7 +166,6 @@ class Coach:
 
             current_lr = self.opt.get_lr()
             print(f"Epoch {epoch + 1}/{self.args2.epochs}, LR: {current_lr:.8f}, Loss: {test_loss:.4f}")
-
 
             if test_f1 > btf1:
                 torch.save(self.model.model,
@@ -236,8 +253,6 @@ class Coach:
                 self.experiment.log_metric("train_loss", train_loss, epoch=epoch)
                 self.experiment.log_metric("val_loss", dev_loss, epoch=epoch)
 
-        # The best
-
         self.model.load_state_dict(best_state)
         self.experiment.info("")
         self.experiment.info("Best in epoch {}:".format(best_epoch))
@@ -250,13 +265,12 @@ class Coach:
             self.experiment.log_metric("best_dev_f1", best_dev_f1, epoch=epoch)
             self.experiment.log_metric("best_test_f1", best_test_f1, epoch=epoch)
 
-        print(f"train_time: {train_time} / dev_time: {dev_time} / test_time: {test_time}")
-        print(f"Average - train_time: {train_time/self.args2.epochs} / dev_time: {dev_time/self.args2.epochs} / test_time: {test_time}/sef.args2.epochs")
+        print(f"train_time: {train_time} sec / dev_time: {dev_time} sec / test_time: {test_time} sec")
+        print(f"Average - train_time: {train_time/self.args2.epochs} sec / dev_time: {dev_time/self.args2.epochs} sec / test_time: {test_time/self.args2.epochs} sec")
 
         return best_dev_f1, best_dev_acc, best_epoch, best_state, train_losses, dev_losses, dev_f1s, test_f1s, dev_accs, test_accs, test_losses
 
     def pretrain_epoch(self, epoch):
-
         epoch_pretrain_time = 0
         epoch_loss = 0
         self.model.train()
@@ -277,7 +291,7 @@ class Coach:
             if self.args.do_MAE:
                 loss = self.model.pretrain(data, self.n_max_utterances_pretrain)
             elif self.args.do_NCE:
-                loss = self.model.pretrain_NCE(data, self.n_max_utterances_pretrain)
+                loss = self.model.pretrain_NACL(data, self.n_max_utterances_pretrain)
             elif self.args.do_VATT:
                 loss = self.model.pretrain_VATT(data, self.n_max_utterances_pretrain)
             else:
@@ -309,6 +323,50 @@ class Coach:
             % (epoch, epoch_loss, epoch_pretrain_time)
         )
         return epoch_loss, epoch_pretrain_time
+
+    def pretrain_validation_epoch(self, epoch):
+        eval_time = 0
+        dev_loss = 0
+        self.model.eval()
+        num_dev_batches = len(self.devset)
+        
+        with torch.no_grad():
+            for idx in tqdm(range(num_dev_batches), desc="pretrain dev epoch {}".format(epoch)):
+                data = copy.deepcopy(self.devset[idx])
+
+                for k, v in data.items():
+                    if data[k] is not None and k != 'y':
+                        data[k] = v.to(self.args.device)
+
+                loss = 0.
+                torch.cuda.synchronize()
+                start_time = time.time()
+
+                if self.args.do_MAE:
+                    loss = self.model.pretrain(data, self.devset.n_max_utterances)
+                elif self.args.do_NCE:
+                    loss = self.model.pretrain_NACL(data, self.devset.n_max_utterances)
+                elif self.args.do_VATT:
+                    loss = self.model.pretrain_VATT(data, self.devset.n_max_utterances)
+                else:
+                    raise NotImplementedError(f"Choose MAE or NCE or VATT at least one.")
+
+                dev_loss += loss.item()
+
+                torch.cuda.synchronize()
+                end_time = time.time()
+                eval_time += end_time - start_time
+                
+                torch.cuda.empty_cache()
+
+            dev_loss /= num_dev_batches
+            
+        self.experiment.info(
+            "[Dev Epoch %d] [Loss: %f] [Time: %f]"
+            % (epoch, dev_loss, eval_time)
+        )
+        return dev_loss, eval_time
+
 
     def train_epoch(self, epoch):
         epoch_loss = 0

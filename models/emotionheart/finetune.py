@@ -34,7 +34,9 @@ class FinetuneModel(nn.Module):
         self.n_modalities = len(self.modalities)
         self.is_intra_dataset = intra_dataset
 
-        self.model = torch.load(pretrained_encoder_path)
+        self.model = torch.load(pretrained_encoder_path, weights_only=False)
+        for name, param in self.model.named_parameters():
+            print(f"Layer '{name}' - Parameter '{param.requires_grad}' ")
         # self.freeze_encoder()
 
         self.activation = nn.GELU()
@@ -131,7 +133,7 @@ class FinetuneModel(nn.Module):
         for i in range(self.n_modalities):
             graphs.append(embeddings[:, i*n_max_utterances:(i+1)*n_max_utterances, :])
 
-        if self.args.do_NCE:
+        if self.args.do_NACL:
             for i, m_source in enumerate(graphs):
                 for j, m_target in enumerate(graphs):
                     if i == j:
@@ -185,6 +187,6 @@ class FinetuneModel(nn.Module):
             cross_entropy_loss = nn.functional.cross_entropy(logits, labels, weight=class_weights)
 
         # Total Loss
-        loss = cross_entropy_loss + multimodal_NCE_loss*self.args.multimodal_MNA_lambda
+        loss = cross_entropy_loss + multimodal_NCE_loss*self.args.multimodal_NACL_lambda
 
         return loss, logits, labels, graphs
