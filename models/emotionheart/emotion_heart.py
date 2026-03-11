@@ -249,50 +249,6 @@ class EmotionHeartModel(FairseqEncoderModel):
         else:
             fused_emb = self.linear_fusion(fused_emb)
 
-        # if train:
-        #     if self.args.do_DGI:
-        #         within_modality_loss += self.DGIloss(fused_emb.mean(1), fused_emb, inverted_mask)*self.args.DGI_lambda
-
-        # fused_emb = representation
-        # b, u, e = fused_emb.shape
-        # graphs = fused_emb.reshape(b,u,int(e//self.n_modalities),self.n_modalities)[inverted_mask, :]
-
-        # embeddings = representation[:, 1:, :]  # real nodes (i.e., utterance tokens)
-        # summary = representation[:, 0, :]  # virtual nodes (i.e., graph tokens)
-
-        # Global-Local Mutual Information Maximization
-
-        # B, N = embeddings.shape[:2]
-        # fused_emb = None
-        #
-        # graphs = list()
-        # for i in range(self.n_modalities):
-        #     graphs.append(embeddings[:, i*n_max_utterances:(i+1)*n_max_utterances, :])
-        #
-        # if train:
-        #     cnt = 0
-        #     if self.args.do_NACL:
-        #         for i, m_source in enumerate(graphs):
-        #             for j, m_target in enumerate(graphs):
-        #                 if i == j:
-        #                     continue
-        #                 cnt += 1
-        #                 multimodal_NCE_loss += self.NCALloss(m_source, m_target, sim_mask, self.args.topk, self.args.num_classes)
-        #         multimodal_NCE_loss /= cnt
-        #
-        #         # Supervised (Cross Entropy) Loss
-        # # fused_emb = torch.cat(graphs, dim=-1)
-        # # logits = self.classifier(fused_emb)[inverted_mask].view(-1, self.args.num_classes)
-        #
-        # # (M, B, N, D) -> (B, N, M, D) -> (B, N, MD)
-        # fused_emb = torch.stack(graphs).permute(1, 2, 0, 3).contiguous().view(B,n_max_utterances,-1)
-        # graphs = torch.stack(graphs, dim=-1)[inverted_mask, :]
-        # fused_emb = self.linear_fusion(fused_emb)
-
-        # fused_emb = torch.stack(graphs, dim=-1)
-        # graphs = fused_emb[inverted_mask,:]
-        #
-        # fused_emb = self.linear_fusion(fused_emb).squeeze()
 
         logits = self.classifier(fused_emb)[inverted_mask]
         labels = data['y'][inverted_mask].view(-1)

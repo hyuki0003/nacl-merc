@@ -84,7 +84,7 @@ def main(args1, args2):
     
     log.debug("Building emotionheart...")
 
-    if args1.unimodal_inference and args1.modalities in ["a", "t", "v"]:
+    if args2.unimodal_inference and args2.modalities in ["a", "t", "v"]:
         model = torch.load(
             f"./{args1.save_model_checkpoint}/atv_best_model.pt",
             weights_only=False
@@ -104,17 +104,18 @@ def main(args1, args2):
         #         print(f"'{name}'-{param.requires_grad}")
         #     print("--- Check Complete ---")
         for name, param in model.named_parameters():
-            if not name.startswith("encoder.") and not name.startswith("linear_fusion") and not name.startswith("classifier"):
+            # if not name.startswith("encoder.") and not name.startswith("linear_fusion") and not name.startswith("classifier"):
+            if not name.startswith("encoder.") and not name.startswith("linear_fusion") and not name.startswith("attention_fusion") and not name.startswith("classifier") and not name.startswith("unimodal_classifiers"):
                 param.requires_grad=False
             print(f"'{name}'-{param.requires_grad}")
         print("--- Check Complete ---")
         
-        model.args = args1
-        model.modalities = args1.modalities
-        model.n_modalities = len(args1.modalities)
-        model.encoder.args = args1
+        model.args = args2
+        model.modalities = args2.modalities
+        model.n_modalities = len(args2.modalities)
+        model.encoder.args = args2
 
-        model.encoder.n_modalities = len(args1.modalities)
+        model.encoder.n_modalities = len(args2.modalities)
 
         total_params = sum(p.numel() for p in model.parameters())
         print(f"Total parameters:     {total_params:,}")

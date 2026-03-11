@@ -1,6 +1,6 @@
 iemocap:
 
-  seed: 20242025
+  seed: 69
   device: "cuda:2"
   data_dir_path: "data"
   save_model_checkpoint: "model_checkpoints/iemocap"
@@ -16,28 +16,30 @@ iemocap:
   modalities: "atv" # ["a", "t", "v", "at", "tv", "av", "atv"]
 
   hybrid : False
-  unimodal_inference: False
-  from_begin: True
+  from_begin: False
 
   epochs: 200
   batch_size: 12
-  scheduler: "cosineLR_linearWarmUp" # <- [None, stepLR,multistepLR, reduceLR, cyclicLR, cosineLR, cosinLR_linearWarmUp]
+  scheduler: "cosineLR_linearWarmUp" #"cosineLR_linearWarmUp" # <- [None, stepLR,multistepLR, reduceLR, cyclicLR, cosineLR, cosinLR_linearWarmUp]
   T: 5 # duration of scheduler
-  learning_rate: 0.00005
-  weight_decay: 0.001
+  learning_rate: 0.00007
+  weight_decay: 0.0001
 
   do_NACL: True
   do_MAE: True
+
   do_CE: False
   do_WCE : False
-  do_VATT: False
 
-  topk: 3
+  do_VATT: False
+  do_DGI: False
+
+  topk: 15
   at_NCE_lambda: 1
   tv_NCE_lambda: 1
   av_NCE_lambda: 1
-  multimodal_NACL_lambda: 1
-  multimodal_MAE_lambda: 1
+  NACL_lambda: 1
+  MAE_lambda: 1
 
   temperature: 0.1
   max_grad_value: -1
@@ -61,9 +63,9 @@ iemocap:
 
 
   do_mask: True
-  mask_prob_v: 0.7
-  mask_prob_a: 0.7
-  mask_prob_t: 0.7
+  mask_prob_v: 0.75
+  mask_prob_a: 0.75
+  mask_prob_t: 0.75
 
   specific : False # model-specific or -agnostic encoder
   do_MIM: False

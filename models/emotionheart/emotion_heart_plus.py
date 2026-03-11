@@ -244,7 +244,7 @@ class EmotionHeartModel(FairseqEncoderModel):
             MAE_reconstruction_loss += (F.mse_loss(reconstructed_token, masked_token)*normalized_loss_weights[modality])
 
         # print(f"MAE loss : {MAE_reconstruction_loss}")
-        loss = self.args.multimodal_NACL_lambda*masked_neighbor_aligned_contrastive_loss + self.args.multimodal_MAE_lambda*MAE_reconstruction_loss
+        loss = self.args.NACL_lambda*masked_neighbor_aligned_contrastive_loss + self.args.MAE_lambda*MAE_reconstruction_loss
         return loss
 
     def pretrain_NACL(self, data, n_max_utterances):
