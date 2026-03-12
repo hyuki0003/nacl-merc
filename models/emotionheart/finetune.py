@@ -323,14 +323,17 @@ class FinetuneModel(BaseFairseqModel):
             cross_entropy_loss = nn.functional.cross_entropy(logits, labels, weight=class_weights)
 
             # --- Unimodal Auxiliary CE Loss ---
-            # graphs shape: (Valid_N, D, M)  ->  graphs[:, :, i] gives (Valid_N, D) for modality i
+            # graphs: (Valid_N, D, M)  →  graphs[:, :, i] gives (Valid_N, D) for modality i
+            # BugFix: use per-modality graph embedding (not fused_emb), normalize OUTSIDE loop,
+            #         multiply by unimodal_lambda (larger lambda = larger contribution, like NACL_lambda).
             if train and self.n_modalities > 1:
                 unimodal_ce_loss = 0.
                 for i in range(self.n_modalities):
                     uni_logits = self.unimodal_classifiers[i](fused_emb)[inverted_mask]
                     unimodal_ce_loss += nn.functional.cross_entropy(uni_logits, labels, weight=class_weights)
-                    unimodal_ce_loss /= self.n_modalities * self.args.unimodal_lambda
-        # Total Loss                    
+                unimodal_ce_loss = (unimodal_ce_loss / self.n_modalities) * self.args.unimodal_lambda
+
+        # Total Loss
         loss = cross_entropy_loss + within_modality_loss + between_modality_loss + unimodal_ce_loss
         # print(f"cross-entropy loss: {cross_entropy_loss}, within-modality loss: {within_modality_loss}, between-modality loss: {between_modality_loss}")
 

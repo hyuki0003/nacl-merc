@@ -1,76 +1,63 @@
 iemocap:
-
-  seed: 20242025
-  device: "cuda:2"
-  data_dir_path: "data"
-  save_model_checkpoint: "model_checkpoints/iemocap"
-  save_analysis_path: "save/analysis/iemocap"
-  log_in_comet: False
-  experiment_in_comet: False
-  n_pretrain_dialogues: 108
-  n_pretrain_utterances: 3200
+  DGI_lambda: 0.1
+  NACL_lambda: 0.5
+  T: 5
+  VATT_lambda: 0.3
+  act_dropout: 0.0
+  activation_fn: gelu
+  apply_graphormer_init: false
+  at_NCE_lambda: 1
+  attention_dropout: 0.0
+  av_NCE_lambda: 1
+  batch_size: 12
+  centrality: degree
+  data_dir_path: data
+  device: cuda:2
+  do_CE: true
+  do_DGI: false
+  do_MAE: false
+  do_NACL: false
+  do_VATT: false
+  do_WCE: false
+  dropout: 0.3
+  edge_type: multi_hop
+  emotion: 6class
+  encoder_attention_heads: 6
+  encoder_embed_dim: 384
+  encoder_layers: 2
+  encoder_normalize_before: true
+  epochs: 200
+  experiment_in_comet: false
+  ffn_embed_scaler: 4
+  from_scratch: false
+  learning_rate: 0.0001
+  log_in_comet: false
+  max_dist: 51
+  max_grad_value: -1
+  max_nodes: 500
+  modalities: atv
+  multi_hop_max_dist: 51
   n_finetune_dialogues: 36
   n_finetune_utterances: 1751
-  n_valid_dialogues: 12
-  n_valid_utterances: 400
+  n_pretrain_dialogues: 108
+  n_pretrain_utterances: 3200
   n_test_dialogues: 31
   n_test_utterances: 943
-  modalities: "atv" # ["a", "t", "v", "at", "tv", "av", "atv"]
-
-  unimodal_inference: False
-  from_scratch: False
-
-  epochs: 200
-  batch_size: 12
-  scheduler: "cosineLR_linearWarmUp" # <- [None, stepLR,multistepLR, reduceLR, cyclicLR, cosineLR, cosinLR_linearWarmUp]
-  T: 5 # duration of scheduler
-  learning_rate: 0.0001
-  weight_decay: 0.00001
-
-  do_NACL: False
-  do_MAE: False
-  
-  do_CE: True
-  do_WCE : False
-
-  do_VATT: False
-  do_DGI: False
-
-  topk: 15
-  at_NCE_lambda: 1
-  tv_NCE_lambda: 1
-  av_NCE_lambda: 1
-
-  unimodal_lambda: 0.3
-  NACL_lambda: 0.3
-  VATT_lambda: 0.3
-  DGI_lambda: 0.1
-
-  temperature: 0.1
-  max_grad_value: -1
-  dropout: 0.3
-  attention_dropout: 0.
-
-  emotion: "6class"
-  centrality: "degree"
-  act_dropout: 0.0
-  max_nodes: 500
-  max_dist: 51
-  num_edge_dis: 51
-
-  multi_hop_max_dist: 51
-  encoder_layers: 2 # [2, 3, 4] test
-  encoder_attention_heads: 6  # [4, 6, 8] test , i.e., each head's dim [96, 64, 48]
-  encoder_embed_dim: 384 # [256, 384, 512] test
-  ffn_embed_scaler: 4 # encoder_embed_dim * 4
-  sub_classifier_dim: 128
+  n_valid_dialogues: 12
+  n_valid_utterances: 400
+  no_token_positional_embeddings: false
   num_classes: 6
-
-
-  edge_type: multi_hop # single_hop, multi_hop
-  share_encoder_input_output_embed: False # share encoder input and output embeddings"
-  no_token_positional_embeddings: False # if set, disables positional embeddings" " (outside self attention)
-  apply_graphormer_init: False # use custom param initialization for Graphormer
-  activation_fn: "gelu"  # activation function to use
-  encoder_normalize_before: True  # apply layernorm before each encoder block
-  pre_layernorm: True
+  num_edge_dis: 51
+  pre_layernorm: true
+  save_analysis_path: save/analysis/iemocap
+  save_model_checkpoint: model_checkpoints/iemocap
+  scheduler: cosineLR_linearWarmUp
+  seed: 20242025
+  share_encoder_input_output_embed: false
+  sub_classifier_dim: 128
+  temperature: 0.05
+  topk: 5
+  tv_NCE_lambda: 1
+  unimodal_inference: false
+  unimodal_lambda: 0.1
+  weight_decay: 1.0e-05

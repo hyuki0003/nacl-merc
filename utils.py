@@ -119,8 +119,7 @@ def plot_and_save_loss(train_losses, val_losses, test_losses, filename):
     plt.grid(True)
 
     plt.savefig(filename, format='png', bbox_inches='tight', dpi=300)
-    plt.show()
-
+    plt.close('all')  # close instead of show — avoids blocking on headless servers
     print(f"Plot saved as {filename}")
 
 
