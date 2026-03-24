@@ -244,106 +244,441 @@ class infoNCE_loss(nn.Module):
         ret = self.semi_loss(z1, z2, mask)
         return ret
 
+# Version 1
+# class NACL_loss(nn.Module):
+#     def __init__(self, temperature):
+#         super(NACL_loss, self).__init__()
+#         self.temperature = temperature
+#
+#
+#     def topK_masks(self, z, mask,n_classes, k=3):
+#         """
+#         Returns masks indicating the positions of top-K positive and negative samples,
+#         with adjustments for cases where the number of valid samples is less than K.
+#
+#         Args:
+#             sim (torch.Tensor): (B, N, N) similarity matrix.
+#             mask (torch.Tensor): (B, N, N) padding mask (True = ignored values).
+#             k (int): Number of top-K nearest neighbors.
+#
+#         Returns:
+#             tuple(torch.Tensor, torch.Tensor):
+#                 - positive_mask: (B, N, N) mask for positive pairs.
+#                 - negative_mask: (B, N, N) mask for negative pairs.
+#         """
+#         _sim = torch.cdist(z,z, p=2)
+#         B, N, _ = _sim.shape
+#         sim = _sim.clone()  # sim dist and  Avoid modifying the original similarity matrix
+#
+#         self_mask = torch.eye(N, device=sim.device).bool().unsqueeze(0)  # (1, N, N), self-similarity mask
+#         all_mask = mask | self_mask
+#
+#         sim.masked_fill_(all_mask, float('inf'))  # remove self similarity and padded one
+#
+#         # ✅ Count valid samples in each batch (excluding padding)
+#         valid_sample_count = (~all_mask).sum(dim=-1).max(dim=-1).values # (B,) number of non-padding samples per batch
+#
+#         # ✅ Dynamic K: Adjust top-K for batches with fewer valid samples
+#         dynamic_k = torch.where(valid_sample_count <= k, 1, k)
+#
+#         # ✅ Initialize positive_mask
+#         positive_mask = torch.zeros((B, N, N), dtype=torch.bool, device=sim.device)  # (B, N, N)
+#
+#         for b in range(B):
+#             if valid_sample_count[b] == 0:
+#                 continue
+#             top_k_indices = torch.topk(sim[b], dynamic_k[b].item(), dim=-1, largest=False).indices  # (N, dynamic_k)
+#             positive_mask[b].scatter_(1, top_k_indices, True)  # Mark top-K positions as True
+#
+#         positive_mask.masked_fill_(all_mask, False)
+#
+#         # ✅ Create Negative Mask (excluding padding, self-similarity, and positive samples)
+#         negative_mask = ~(all_mask | positive_mask)  # (B, N, N)
+#         negative_mask.masked_fill_(self_mask, False)
+#
+#         return positive_mask, negative_mask
+#
+#
+#     def batch_sim(self, z1: torch.Tensor, z2: torch.Tensor,eps=1e-12):
+#
+#         # Normalize the vectors to avoid repeated computation of norms
+#         z1_norm = z1 / (torch.norm(z1, dim=-1, keepdim=True)+eps)  # Shape: (B, N, F)
+#         z2_norm = z2 / (torch.norm(z2, dim=-1, keepdim=True)+eps)  # Shape: (B, N, F)
+#
+#         # Compute the cosine similarity using batch matrix multiplication
+#         cosine_similarity = torch.bmm(z1_norm, z2_norm.transpose(1, 2))  # Shape: (B, N, N)
+#
+#         return cosine_similarity
+#
+#
+#     def semi_loss(self, z1: torch.Tensor, z2: torch.Tensor, z1_all_mask, k, n_classes,eps=1e-12, mode=None):
+#         f = lambda x: torch.exp(x / self.temperature)
+#         within_sim = self.batch_sim(z2, z2)
+#
+#         within_sim_positive_mask, within_sim_negative_mask = self.topK_masks(z1, z1_all_mask, n_classes, k=k)
+#
+#         within_sim = f(within_sim)
+#
+#         within_positive_sim = within_sim*within_sim_positive_mask
+#
+#         within_negative_sim = within_sim*within_sim_negative_mask
+#
+#         numerator = within_positive_sim.sum(dim=-1)
+#         denominator = numerator + within_negative_sim.sum(dim=-1)
+#         #
+#         # if torch.isinf(numerator).any():
+#         #     print(f"🔥 Overflow detected in mode: {mode}")
+#         #     print(f"Max value in numerator: {numerator.max()}")
+#         #
+#         # if torch.isnan(numerator).any():
+#         #     print(f"🔥 Overflow detected in mode: {mode}")
+#         #     print("🚨 NaN detected in numerator input tensors before loss calculation!")
+#         # if torch.isnan(denominator).any():
+#         #     print("🚨 NaN detected in denominator input tensors before loss calculation!")
+#
+#         loss = -torch.log((numerator+eps)/(denominator+eps))
+#
+#         return torch.nanmean(loss)
+#
+#
+#     def forward(self, z1: torch.Tensor, z2: torch.Tensor, z1_all_mask, k, n_classes, mode=None):
+#         return self.semi_loss(z1, z2, z1_all_mask, k, n_classes, mode=mode)
+
+# Version 3
 
 class NACL_loss(nn.Module):
-    def __init__(self, temperature):
-        super(NACL_loss, self).__init__()
+    """
+    Neighbor Alignment Contrastive Learning (NACL)
+
+    Anchor      : z1[:, i, :]   (source modality)
+    Candidates  : z2[:, n, :]   (target modality)
+
+    Positive set for anchor i:
+        {i} U N_i^(z1)
+    where N_i^(z1) is the top-k self-excluded neighborhood of z1[:, i, :]
+    in the source-modality space.
+
+    Masks:
+        z1_mask: (B, N), True = invalid source node (padding / masked)
+        z2_mask: (B, N), True = invalid target node (padding / masked)
+    """
+
+    def __init__(self, temperature: float = 0.1, similarity: str = "cosine", eps: float = 1e-12):
+        super().__init__()
+        assert similarity in {"cosine", "l2"}
         self.temperature = temperature
+        self.similarity = similarity
+        self.eps = eps
 
+    def _normalize(self, z: torch.Tensor) -> torch.Tensor:
+        return F.normalize(z, p=2, dim=-1, eps=self.eps)
 
-    def topK_masks(self, z, mask,n_classes, k=3):
+    def _pairwise_metric(self, z1: torch.Tensor, z2: torch.Tensor) -> torch.Tensor:
         """
-        Returns masks indicating the positions of top-K positive and negative samples,
-        with adjustments for cases where the number of valid samples is less than K.
+        Returns pairwise similarity score matrix of shape (B, N, N).
 
-        Args:
-            sim (torch.Tensor): (B, N, N) similarity matrix.
-            mask (torch.Tensor): (B, N, N) padding mask (True = ignored values).
-            k (int): Number of top-K nearest neighbors.
-
-        Returns:
-            tuple(torch.Tensor, torch.Tensor):
-                - positive_mask: (B, N, N) mask for positive pairs.
-                - negative_mask: (B, N, N) mask for negative pairs.
+        cosine: larger is better
+        l2    : returns negative distance so that larger is better
         """
-        _sim = torch.cdist(z,z, p=2)
-        B, N, _ = _sim.shape
-        sim = _sim.clone()  # sim dist and  Avoid modifying the original similarity matrix
+        if self.similarity == "cosine":
+            z1 = self._normalize(z1)
+            z2 = self._normalize(z2)
+            return torch.bmm(z1, z2.transpose(1, 2))
+        else:
+            return -torch.cdist(z1, z2, p=2)
 
-        self_mask = torch.eye(N, device=sim.device).bool().unsqueeze(0)  # (1, N, N), self-similarity mask
-        all_mask = mask | self_mask
+    def _build_positive_mask(
+        self,
+        z1: torch.Tensor,
+        z1_mask: torch.Tensor,
+        z2_mask: torch.Tensor,
+        k: int,
+    ):
+        """
+        Build positive mask of shape (B, N, N):
+            row = anchor index i in z1
+            col = candidate index n in z2
 
-        sim.masked_fill_(all_mask, float('inf'))  # remove self similarity and padded one
+        Positive columns for row i:
+            - n = i (direct joint positive), if z2[i] is valid
+            - n in top-k neighbors of z1[i] within z1, mapped into z2 indices,
+              while excluding invalid z2 candidates
+        """
+        B, N, _ = z1.shape
+        device = z1.device
 
-        # ✅ Count valid samples in each batch (excluding padding)
-        valid_sample_count = (~all_mask).sum(dim=-1).max(dim=-1).values # (B,) number of non-padding samples per batch
+        # valid anchors are determined by z1
+        valid_anchor = ~z1_mask  # (B, N)
 
-        # ✅ Dynamic K: Adjust top-K for batches with fewer valid samples
-        dynamic_k = torch.where(valid_sample_count <= k, 1, k)
+        # source-modality KNN mining on z1
+        metric_11 = self._pairwise_metric(z1, z1)  # (B, N, N)
+        eye = torch.eye(N, device=device, dtype=torch.bool).unsqueeze(0)  # (1, N, N)
 
-        # ✅ Initialize positive_mask
-        positive_mask = torch.zeros((B, N, N), dtype=torch.bool, device=sim.device)  # (B, N, N)
+        # invalid for KNN mining: source invalid rows/cols + self
+        knn_invalid = z1_mask.unsqueeze(2) | z1_mask.unsqueeze(1) | eye
+        metric_11 = metric_11.masked_fill(knn_invalid, -torch.finfo(metric_11.dtype).max)
+
+        positive_mask = torch.zeros((B, N, N), dtype=torch.bool, device=device)
 
         for b in range(B):
-            if valid_sample_count[b] == 0:
+            valid_idx = torch.nonzero(valid_anchor[b], as_tuple=False).squeeze(-1)
+            num_valid = valid_idx.numel()
+
+            if num_valid == 0:
                 continue
-            top_k_indices = torch.topk(sim[b], dynamic_k[b].item(), dim=-1, largest=False).indices  # (N, dynamic_k)
-            positive_mask[b].scatter_(1, top_k_indices, True)  # Mark top-K positions as True
 
-        positive_mask.masked_fill_(all_mask, False)
+            # 1) direct cross-modal joint positive: z1[i] -> z2[i]
+            joint_valid = valid_anchor[b] & (~z2_mask[b])  # both source anchor and target candidate valid
+            positive_mask[b, joint_valid, torch.arange(N, device=device)[joint_valid]] = True
 
-        # ✅ Create Negative Mask (excluding padding, self-similarity, and positive samples)
-        negative_mask = ~(all_mask | positive_mask)  # (B, N, N)
-        negative_mask.masked_fill_(self_mask, False)
+            # 2) neighborhood positives: neighbors found in z1, mapped by same indices into z2
+            if num_valid > 1 and k > 0:
+                k_b = min(k, num_valid - 1)
 
-        return positive_mask, negative_mask
+                submetric = metric_11[b, valid_idx, :]  # (num_valid, N)
+                topk_idx = torch.topk(submetric, k=k_b, dim=-1, largest=True).indices  # (num_valid, k_b)
+
+                row_idx = valid_idx[:, None].expand_as(topk_idx)
+
+                # z2 invalid candidates must not become positives
+                valid_neighbor_in_z2 = ~z2_mask[b, topk_idx]
+                positive_mask[b, row_idx[valid_neighbor_in_z2], topk_idx[valid_neighbor_in_z2]] = True
+
+        return positive_mask, valid_anchor
+
+    def semi_loss(
+        self,
+        z1: torch.Tensor,
+        z2: torch.Tensor,
+        z1_mask: torch.Tensor,
+        z2_mask: torch.Tensor,
+        k: int,
+    ) -> torch.Tensor:
+        """
+        z1:      (B, N, F), source modality embeddings (anchors + neighbor mining source)
+        z2:      (B, N, F), target modality embeddings (candidate bank)
+        z1_mask: (B, N), True = invalid source anchor / source node
+        z2_mask: (B, N), True = invalid target candidate
+        """
+        # logits: anchor = z1_i, candidate = z2_n
+        logits = self._pairwise_metric(z1, z2) / self.temperature  # (B, N, N)
+
+        # build positives from z1-neighborhood + direct joint pair
+        positive_mask, valid_anchor = self._build_positive_mask(z1, z1_mask, z2_mask, k)
+
+        # mask invalid target candidates only
+        logits = logits.masked_fill(z2_mask.unsqueeze(1), -torch.finfo(logits.dtype).max)
+
+        # log-softmax over candidate bank z2
+        log_prob = F.log_softmax(logits, dim=-1)  # (B, N, N)
+
+        # multi-positive soft target
+        target = positive_mask.float()
+        pos_count = target.sum(dim=-1, keepdim=True)  # (B, N, 1)
+
+        # valid anchors must be valid in z1 and have at least one valid positive in z2
+        valid_anchor = valid_anchor & (pos_count.squeeze(-1) > 0)
+
+        target = target / pos_count.clamp_min(1.0)
+
+        # cross-entropy with soft labels
+        loss = -(target * log_prob).sum(dim=-1)  # (B, N)
+
+        if valid_anchor.any():
+            return loss[valid_anchor].mean()
+        else:
+            return logits.new_tensor(0.0)
+
+    def forward(
+        self,
+        z1: torch.Tensor,
+        z2: torch.Tensor,
+        z1_mask: torch.Tensor,
+        z2_mask: torch.Tensor,
+        k: int,
+    ) -> torch.Tensor:
+        return self.semi_loss(z1, z2, z1_mask, z2_mask, k)
 
 
-    def batch_sim(self, z1: torch.Tensor, z2: torch.Tensor,eps=1e-12):
-
-        # Normalize the vectors to avoid repeated computation of norms
-        z1_norm = z1 / (torch.norm(z1, dim=-1, keepdim=True)+eps)  # Shape: (B, N, F)
-        z2_norm = z2 / (torch.norm(z2, dim=-1, keepdim=True)+eps)  # Shape: (B, N, F)
-
-        # Compute the cosine similarity using batch matrix multiplication
-        cosine_similarity = torch.bmm(z1_norm, z2_norm.transpose(1, 2))  # Shape: (B, N, N)
-
-        return cosine_similarity
-
-
-    def semi_loss(self, z1: torch.Tensor, z2: torch.Tensor, z1_all_mask, k, n_classes,eps=1e-12, mode=None):
-        f = lambda x: torch.exp(x / self.temperature)
-        within_sim = self.batch_sim(z2, z2)
-
-        within_sim_positive_mask, within_sim_negative_mask = self.topK_masks(z1, z1_all_mask, n_classes, k=k)
-
-        within_sim = f(within_sim)
-
-        within_positive_sim = within_sim*within_sim_positive_mask
-
-        within_negative_sim = within_sim*within_sim_negative_mask
-
-        numerator = within_positive_sim.sum(dim=-1)
-        denominator = numerator + within_negative_sim.sum(dim=-1)
-        #
-        # if torch.isinf(numerator).any():
-        #     print(f"🔥 Overflow detected in mode: {mode}")
-        #     print(f"Max value in numerator: {numerator.max()}")
-        #
-        # if torch.isnan(numerator).any():
-        #     print(f"🔥 Overflow detected in mode: {mode}")
-        #     print("🚨 NaN detected in numerator input tensors before loss calculation!")
-        # if torch.isnan(denominator).any():
-        #     print("🚨 NaN detected in denominator input tensors before loss calculation!")
-
-        loss = -torch.log((numerator+eps)/(denominator+eps))
-
-        return torch.nanmean(loss)
-
-
-    def forward(self, z1: torch.Tensor, z2: torch.Tensor, z1_all_mask, k, n_classes, mode=None):
-        return self.semi_loss(z1, z2, z1_all_mask, k, n_classes, mode=mode)
-
+# Version 2
+# class NACL_loss(nn.Module):
+#     """
+#     Neighbor Alignment Contrastive Learning (NACL)
+#
+#     Anchor   : z2[:, i, :]   (target modality)
+#     Candidates: z1[:, n, :]  (source modality)
+#
+#     Positive set for anchor i:
+#         {i} U N_i^alpha
+#     where N_i^alpha is the top-k self-excluded neighborhood of z1[:, i, :]
+#     in the source modality space.
+#
+#     pair_mask: Bool tensor of shape (B, N, N)
+#         True  -> invalid pair (padding / masked token / excluded candidate)
+#         False -> valid pair
+#     """
+#
+#     def __init__(
+#         self,
+#         temperature: float = 0.1,
+#         similarity: str = "cosine",
+#         eps: float = 1e-12,
+#     ):
+#         super().__init__()
+#         assert similarity in {"cosine", "l2"}
+#         self.temperature = temperature
+#         self.similarity = similarity
+#         self.eps = eps
+#
+#     def _valid_nodes(self, pair_mask: torch.Tensor) -> torch.Tensor:
+#         """
+#         pair_mask: (B, N, N), True = invalid
+#         Assumes diagonal entries indicate whether each node itself is valid.
+#         Returns:
+#             valid_nodes: (B, N), True = valid node
+#         """
+#         return ~torch.diagonal(pair_mask, dim1=1, dim2=2)
+#
+#     def _pairwise_metric(self, z1: torch.Tensor, z2: torch.Tensor) -> torch.Tensor:
+#         """
+#         Returns raw pairwise metric:
+#             - cosine similarity if similarity == 'cosine'
+#             - L2 distance      if similarity == 'l2'
+#         Shape: (B, N, N)
+#         """
+#         if self.similarity == "cosine":
+#             z1 = F.normalize(z1, p=2, dim=-1, eps=self.eps)
+#             z2 = F.normalize(z2, p=2, dim=-1, eps=self.eps)
+#             return torch.bmm(z1, z2.transpose(1, 2))
+#         else:  # l2
+#             return torch.cdist(z1, z2, p=2)
+#
+#     def _pairwise_logits(self, z1: torch.Tensor, z2: torch.Tensor) -> torch.Tensor:
+#         """
+#         Returns similarity logits:
+#             - cosine similarity
+#             - negative L2 distance
+#         Shape: (B, N, N)
+#         """
+#         metric = self._pairwise_metric(z1, z2)
+#         if self.similarity == "cosine":
+#             return metric
+#         else:
+#             return -metric  # smaller distance -> larger logit
+#
+#     def _build_positive_mask(
+#         self,
+#         ref: torch.Tensor,
+#         pair_mask: torch.Tensor,
+#         k: int,
+#     ):
+#         """
+#         Build positive mask from source-modality neighborhoods.
+#
+#         ref      : (B, N, F), source modality embeddings used for neighbor mining
+#         pair_mask: (B, N, N), True = invalid pair
+#         k        : requested top-k
+#
+#         Returns:
+#             positive_mask: (B, N, N), True at positive candidate positions
+#             valid_nodes  : (B, N), True for valid node indices
+#         """
+#         B, N, _ = ref.shape
+#         device = ref.device
+#
+#         valid_nodes = self._valid_nodes(pair_mask)  # (B, N)
+#         eye = torch.eye(N, device=device, dtype=torch.bool).unsqueeze(0)  # (1, N, N)
+#
+#         # Neighbor mining is performed within the source modality ref
+#         metric = self._pairwise_metric(ref, ref)  # (B, N, N)
+#
+#         # Exclude invalid pairs and self-neighbors during KNN mining
+#         if self.similarity == "cosine":
+#             metric = metric.masked_fill(pair_mask | eye, -float("inf"))
+#             largest = True
+#         else:  # l2 distance
+#             metric = metric.masked_fill(pair_mask | eye, float("inf"))
+#             largest = False
+#
+#         positive_mask = torch.zeros((B, N, N), dtype=torch.bool, device=device)
+#
+#         for b in range(B):
+#             valid_idx = torch.nonzero(valid_nodes[b], as_tuple=False).squeeze(-1)
+#             num_valid = valid_idx.numel()
+#
+#             if num_valid == 0:
+#                 continue
+#
+#
+#             positive_mask[b, valid_idx, valid_idx] = True
+#
+#             # top-k neighborhood positives (self excluded)
+#             if num_valid > 1 and k > 0:
+#                 k_b = min(k, num_valid - 1)
+#                 submetric = metric[b, valid_idx, :]  # (num_valid, N)
+#                 topk_idx = torch.topk(
+#                     submetric, k=k_b, dim=-1, largest=largest
+#                 ).indices  # (num_valid, k_b)
+#
+#                 row_idx = valid_idx[:, None].expand_as(topk_idx)
+#                 positive_mask[b, row_idx, topk_idx] = True
+#
+#         # Remove any invalid positions
+#         positive_mask &= ~pair_mask
+#         return positive_mask, valid_nodes
+#
+#     def semi_loss(
+#         self,
+#         z1: torch.Tensor,
+#         z2: torch.Tensor,
+#         pair_mask: torch.Tensor,
+#         k: int,
+#     ) -> torch.Tensor:
+#         """
+#         z1: (B, N, F), source modality embeddings for neighborhood mining and candidate bank
+#         z2: (B, N, F), target modality embeddings for anchors
+#         pair_mask: (B, N, N), True = invalid pair (padding / masked token / excluded candidate)
+#
+#         Loss is computed for anchors in z2 against candidates in z1.
+#         """
+#         # logits(anchor=z2_i, candidate=z1_n)
+#         logits = self._pairwise_logits(z2, z1) / self.temperature  # (B, N, N)
+#
+#         # positives = same-utterance joint pair + source-modality KNN neighbors
+#
+#         positive_mask, valid_nodes = self._build_positive_mask(z1, pair_mask, k)
+#
+#         # mask invalid candidates
+#         logits = logits.masked_fill(pair_mask, -torch.finfo(logits.dtype).max)
+#
+#         # log-softmax over valid candidate bank
+#         log_prob = F.log_softmax(logits, dim=-1)
+#
+#         # soft target over positives
+#         target = positive_mask.float()
+#         pos_count = target.sum(dim=-1, keepdim=True)  # (B, N, 1)
+#
+#         # valid anchors must be valid nodes and have at least one positive
+#         valid_anchor = valid_nodes & (pos_count.squeeze(-1) > 0)
+#
+#         target = target / pos_count.clamp_min(1.0)
+#
+#         # cross-entropy with multi-positive soft targets
+#         loss = -(target * log_prob).sum(dim=-1)  # (B, N)
+#
+#         if valid_anchor.any():
+#             return loss[valid_anchor].mean()
+#         else:
+#             return logits.new_tensor(0.0)
+#
+#     def forward(
+#         self,
+#         z1: torch.Tensor,
+#         z2: torch.Tensor,
+#         pair_mask: torch.Tensor,
+#         k: int,
+#     ) -> torch.Tensor:
+#         return self.semi_loss(z1, z2, pair_mask, k)
 
 
 

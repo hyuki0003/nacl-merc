@@ -16,75 +16,151 @@ utils.make_route('./log', 'train.log')
 log = utils.get_logger('./log/train.log')
 
 def main(args1, args2):
-    
     utils.set_seed(args1.seed)
 
-    # load pretraining data
+    # load data
     log.info("Load pretraining dataset... Name: " + args1.dataset)
     pretraining_data_dir = os.path.join(os.getcwd(), args1.data_dir_path, args1.dataset)
     args1.data = os.path.join(pretraining_data_dir, "data_" + args1.dataset + ".pkl")
-    graph_trainset_file = os.path.join(pretraining_data_dir, f"graph_trainset.pkl")
-    graph_devset_file = os.path.join(pretraining_data_dir, "graph_devset.pkl")
-    graph_testset_file = os.path.join(pretraining_data_dir, "graph_testset.pkl")
-    graph_allset_file = os.path.join(pretraining_data_dir, "graph_allset.pkl")
 
-    
-    log.info("Load pretraining dataset... Name: " + args1.dataset)
-    pretraining_data_dir = os.path.join(os.getcwd(), args1.data_dir_path, args1.dataset)
-    args1.data = os.path.join(pretraining_data_dir, "data_" + args1.dataset + ".pkl")
-    
-    graph_allset_file = os.path.join(pretraining_data_dir, "graph_allset.pkl")
-    # graph_trainset_file = os.path.join(pretraining_data_dir, f"graph_trainset.pkl")
-    # graph_devset_file = os.path.join(pretraining_data_dir, "graph_devset.pkl")
-    # graph_testset_file = os.path.join(pretraining_data_dir, "graph_testset.pkl")
-    
-    pretraining_data = utils.load_pkl(args1.data)
-    if not os.path.exists(graph_allset_file):
-        allset = gdt.iemocap_4_graphDataset(pretraining_data["train"], 'train', args2)
-        utils.save_pkl(allset, graph_allset_file)
-    allset = utils.load_pkl(graph_allset_file)
-    
-    
-    # load finetuning data
     log.info("Load finetuning dataset... Name: " + args2.dataset)
     finetuning_data_dir = os.path.join(os.getcwd(), args2.data_dir_path, args2.dataset)
     args2.data = os.path.join(finetuning_data_dir, "data_" + args2.dataset + ".pkl")
 
-    graph_trainset_file = os.path.join(finetuning_data_dir, f"graph_trainset.pkl")
-    graph_devset_file = os.path.join(finetuning_data_dir, "graph_devset.pkl")
-    graph_testset_file = os.path.join(finetuning_data_dir, "graph_testset.pkl")
-    
-    if not os.path.exists(graph_trainset_file):
-        trainset = gdt.iemocap_4_graphDataset(data["train"], 'train', args)
-        utils.save_pkl(trainset, graph_trainset_file)
-    trainset = utils.load_pkl(graph_trainset_file)
+    if args1.dataset == "iemocap" or args1.dataset == "iemocap_4":
+        dataset = utils.load_pkl(args1.data)
+        graph_trainset_file = os.path.join(pretraining_data_dir, "graph_trainset.pkl")
 
-    args.n_max_utterances = trainset.n_max_utterances
-    args.n_max_speakers = trainset.n_max_speakers
+        if not os.path.exists(graph_trainset_file):
+            pretrainset = gdt.iemocap_4_graphDataset(dataset["train"], 'train', args1)
+            utils.save_pkl(pretrainset, graph_trainset_file)
+        pretrainset = utils.load_pkl(graph_trainset_file)
 
-    if not os.path.exists(graph_devset_file):
-        devset = gdt.iemocap_4_graphDataset(data["dev"], 'dev', args)
-        utils.save_pkl(devset, graph_devset_file)
-    devset = utils.load_pkl(graph_devset_file)
+        # args.num_nodes = trainset.n_max_utterances * trainset.n_modalities  # with virtual node (graph token, e.g., CLS token in BERT)
+        args1.n_max_utterances = pretrainset.n_max_utterances
+        args1.n_max_speakers = pretrainset.n_max_speakers
 
-    if not os.path.exists(graph_testset_file):
-        testset = gdt.iemocap_4_graphDataset(data["test"], 'test', args)
-        utils.save_pkl(testset, graph_testset_file)
-    testset = utils.load_pkl(graph_testset_file)
+        # if not os.path.exists(graph_devset_file):
+        #     devset = gdt.iemocap_4_graphDataset(pretrainset["dev"], 'dev', args1)
+        #     utils.save_pkl(devset, graph_devset_file)
+        # devset = utils.load_pkl(graph_devset_file)
+        #
+        # if not os.path.exists(graph_testset_file):
+        #     testset = gdt.iemocap_4_graphDataset(pretrainset["test"], 'test', args1)
+        #     utils.save_pkl(testset, graph_testset_file)
+        # testset = utils.load_pkl(graph_testset_file)
 
+    elif args1.dataset == "meld":
+        _, _, _, all_loader = get_MELD_loaders(args1.batch_size, args1.data)
 
+        pretraining_graph_trainset_file = os.path.join(pretraining_data_dir, "graph_pretrainset.pkl")
+
+        if not os.path.exists(pretraining_graph_trainset_file):
+            pretrainset = gdt.meld_graphDataset(all_loader, 'pretrain', args1)
+            utils.save_pkl(pretrainset, pretraining_graph_trainset_file)
+        pretrainset = utils.load_pkl(pretraining_graph_trainset_file)
+        args1.n_max_utterances = pretrainset.n_max_utterances
+        args1.n_max_speakers = pretrainset.n_max_speakers
+
+    elif args1.dataset == "mosei":
+        all_loader = utils.load_pkl(args1.data)
+        pretraining_graph_trainset_file = os.path.join(pretraining_data_dir, "graph_pretrainset.pkl")
+        if not os.path.exists(pretraining_graph_trainset_file):
+            pretrainset = gdt.mosei_graphDataset(all_loader, 'pretrain', args1)
+            utils.save_pkl(pretrainset, pretraining_graph_trainset_file)
+        pretrainset = utils.load_pkl(pretraining_graph_trainset_file)
+        args1.n_max_utterances = pretrainset.n_max_utterances
+        args1.n_max_speakers = pretrainset.n_max_speakers
+
+    else:
+        raise ValueError(f"Unknown pretraining dataset name: {args1.pretraining_dataset}")
+
+    if args2.dataset == "iemocap_4" or args2.dataset == "iemocap":
+        finetuning_data = utils.load_pkl(args2.data)
+        graph_trainset_file = os.path.join(finetuning_data_dir, "graph_trainset.pkl")
+        graph_devset_file = os.path.join(finetuning_data_dir, "graph_devset.pkl")
+        graph_testset_file = os.path.join(finetuning_data_dir, "graph_testset.pkl")
+
+        if not os.path.exists(graph_trainset_file):
+            trainset = gdt.iemocap_4_graphDataset(finetuning_data["train"], 'train', args2)
+            utils.save_pkl(trainset, graph_trainset_file)
+        trainset = utils.load_pkl(graph_trainset_file)
+
+        # args.num_nodes = trainset.n_max_utterances * trainset.n_modalities  # with virtual node (graph token, e.g., CLS token in BERT)
+        args2.n_max_utterances = trainset.n_max_utterances
+        args2.n_max_speakers = trainset.n_max_speakers
+
+        if not os.path.exists(graph_devset_file):
+            devset = gdt.iemocap_4_graphDataset(finetuning_data["dev"], 'dev', args2)
+            utils.save_pkl(devset, graph_devset_file)
+        devset = utils.load_pkl(graph_devset_file)
+
+        if not os.path.exists(graph_testset_file):
+            testset = gdt.iemocap_4_graphDataset(finetuning_data["test"], 'test', args2)
+            utils.save_pkl(testset, graph_testset_file)
+        testset = utils.load_pkl(graph_testset_file)
+
+    elif args2.dataset == "meld":
+        pass
+    elif args2.dataset == "mosei":
+        pass
     log.debug("Building emotionheart...")
-    # model_file = os.path.join(os.getcwd(), args.dataset, "model_checkpoints/graphormer.pt")
 
-    encoder = models.GraphormerEncoder(args1, args2)
+    if args2.unimodal_inference and args2.modalities in ["a", "t", "v"]:
+        model = torch.load(
+            f"./{args1.save_model_checkpoint}/atv_best_model.pt",
+            weights_only=False
+        )
+
+        print("--- Checking Model Parameters ---")
+        # if args1.specific:
+        #     for name, param in model.named_parameters():
+        #         if not name.startswith("linear_fusion") and not name.startswith("classifier"):
+        #             param.requires_grad=False
+        #         print(f"'{name}'-{param.requires_grad}")
+        #     print("--- Check Complete ---")
+        # else:
+        #     for name, param in model.named_parameters():
+        #         if not name.startswith("encoder.") and not name.startswith("linear_fusion") and not name.startswith("classifier"):
+        #             param.requires_grad=False
+        #         print(f"'{name}'-{param.requires_grad}")
+        #     print("--- Check Complete ---")
+        for name, param in model.named_parameters():
+            # if not name.startswith("encoder.") and not name.startswith("linear_fusion") and not name.startswith("classifier"):
+            if not name.startswith("encoder.") and not name.startswith("linear_fusion") and not name.startswith(
+                    "attention_fusion") and not name.startswith("classifier") and not name.startswith(
+                    "unimodal_classifiers"):
+                param.requires_grad = False
+            print(f"'{name}'-{param.requires_grad}")
+        print("--- Check Complete ---")
+
+        model.args = args2
+        model.modalities = args2.modalities
+        model.n_modalities = len(args2.modalities)
+        model.encoder.args = args2
+
+        model.encoder.n_modalities = len(args2.modalities)
+
+        total_params = sum(p.numel() for p in model.parameters())
+        print(f"Total parameters:     {total_params:,}")
+    else:
+        if args1.dataset == "iemocap":
+            n_nodes = trainset.n_max_utterances
+        else:
+            n_nodes = max([trainset.n_max_utterances, testset.n_max_utterances, testset.n_max_utterances])
+    encoder = models.EmotionHeartEncoder(args1, n_nodes)
     decoder = models.EmotionHeartDecoder(args1)
     model = models.EmotionHeartModel(args1, encoder, decoder).to(args1.device)
 
-    opt1 = models.Optim(float(args1.learning_rate), int(args1.T), float(args1.max_grad_value), float(args1.weight_decay), int(args1.epochs), int(args1.n_train_dialogues // args1.batch_size))
+
+    opt1 = models.Optim(float(args1.learning_rate), int(args1.T), float(args1.max_grad_value), float(args1.weight_decay),
+                        int(args1.epochs),len(pretrainset))
     opt1.set_parameters(model.parameters(), args1.optimizer)
     sched1 = opt1.get_scheduler(args1.scheduler)
 
-    coach = models.Coach_Crossdata(pretrainset, trainset, devset, testset, model, opt1, sched1, args1, args2, log)
+    print(f"args_pretrain:\n{args1}\n")
+    print(f"args_finetune:\n{args2}")
+    coach = models.Coach(pretrainset, trainset, devset, testset, model, opt1, sched1, args1, args2, log)
     # if not args.from_begin:
     #     ckpt = torch.load(model_file)
     #     coach.load_ckpt(ckpt)
@@ -109,15 +185,21 @@ def main(args1, args2):
     }
     save_loss_plot_path = os.path.join(os.getcwd(), args1.save_analysis_path+'_'+args2.dataset,
                                        "loss_plot_"+ dt.now().strftime('%Y-%m-%d-%H-%M-%S')+".png")
-    save_metrics_plot_path = os.path.join(os.getcwd(), args1.save_analysis_path+'_'+args2.dataset,
-                                       "metrics_"+ dt.now().strftime('%Y-%m-%d-%H-%M-%S')+".png")
+
     utils.plot_and_save_loss(ret[4], ret[5], ret[10], filename=save_loss_plot_path)
-    torch.save(metrics, save_metrics_plot_path)
+
+    save_metrics_path = os.path.join(os.getcwd(), args1.save_analysis_path + '_' + args2.dataset,
+                                          "metrics_" + dt.now().strftime('%Y-%m-%d-%H-%M-%S') + ".log")
+    os.makedirs(os.path.dirname(save_metrics_path), exist_ok=True)
+
+    with open(save_metrics_path, "w", encoding="utf-8") as f:
+        for key, value in metrics.items():
+            f.write(f"{key}: {value}\n")
 
 if __name__ == "__main__":
 
     #dataset list: ["iemocap", "iemocap_4", "mosei", "meld"]
-    dataset1 = "iemocap"
+    dataset1 = "meld"
     dataset2 = "iemocap"
     
     parser1 = argparse.ArgumentParser(description="pretraining_data")

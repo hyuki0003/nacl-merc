@@ -117,7 +117,7 @@ def plot_and_save_loss(train_losses, val_losses, test_losses, filename):
     plt.ylabel('Loss')
     plt.legend()
     plt.grid(True)
-
+    plt.show()
     plt.savefig(filename, format='png', bbox_inches='tight', dpi=300)
     plt.close('all')  # close instead of show — avoids blocking on headless servers
     print(f"Plot saved as {filename}")
@@ -406,7 +406,7 @@ def alignment_line_save_scatter(result, label, save_path, dr_type=1):
     return
 
 
-def discrimination_save_scatter(result, label, save_path, dr_type=1):
+def discrimination_save_scatter(result, label, save_path, dr_type=1, dataset_name="iemocap"):
     if dr_type == 0:
         dr_name = 'UMAP'
     elif dr_type == 1:
@@ -414,139 +414,48 @@ def discrimination_save_scatter(result, label, save_path, dr_type=1):
     else:
         dr_name = ''
 
-    hap = np.where(label == 0)[0]
-    sad = np.where(label == 1)[0]
-    neu = np.where(label == 2)[0]
-    ang = np.where(label == 3)[0]
-    exc = np.where(label == 4)[0]
-    fru = np.where(label == 5)[0]
-
-    hap_emb = result[hap]
-    sad_emb = result[sad]
-    neu_emb = result[neu]
-    ang_emb = result[ang]
-    exc_emb = result[exc]
-    fru_emb = result[fru]
-
-    colors = [
-        '#1f77b4',  # Tableau Blue
-        '#ff7f0e',  # Tableau Orange
-        '#2ca02c',  # Tableau Green
-        '#d62728',  # Tableau Red
-        '#9467bd',  # Tableau Purple
-        '#8c564b'  # Tableau Brown
-    ]
-
     plt.clf()
-
-    # 🔽🔽🔽 --- 수정/추가된 부분 시작 --- 🔽🔽🔽
-    # 현재 figure와 axes 객체를 가져옵니다.
-    fig, ax = plt.subplots(figsize=(8, 8))  # figsize로 그림 크기 조절 가능
-
-    # X축과 Y축의 눈금을 모두 제거합니다.
+    fig, ax = plt.subplots(figsize=(8, 8))
     ax.set_xticks([])
     ax.set_yticks([])
-
-    # X축과 Y축의 레이블을 제거합니다.
     ax.set_xlabel('')
     ax.set_ylabel('')
-
-    # 그래프의 테두리(spines)를 모두 보이지 않게 설정합니다.
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.spines['bottom'].set_visible(False)
     ax.spines['left'].set_visible(False)
-    # 🔼🔼🔼 --- 수정/추가된 부분 끝 --- 🔼🔼🔼
 
     _s = 12.
-    # plt.scatter를 ax.scatter로 변경합니다.
-    c1 = ax.scatter(hap_emb[:, 0], hap_emb[:, 1], marker="o", color=colors[0], s=_s, label='Happy')
-    c2 = ax.scatter(sad_emb[:, 0], sad_emb[:, 1], marker="o", color=colors[1], s=_s, label='Sad')
-    c3 = ax.scatter(neu_emb[:, 0], neu_emb[:, 1], marker="o", color=colors[2], s=_s, label='Neutral')
-    c4 = ax.scatter(ang_emb[:, 0], ang_emb[:, 1], marker="o", color=colors[3], s=_s, label='Angry')
-    c5 = ax.scatter(exc_emb[:, 0], exc_emb[:, 1], marker="o", color=colors[4], s=_s, label='Excited')
-    c6 = ax.scatter(fru_emb[:, 0], fru_emb[:, 1], marker="o", color=colors[5], s=_s, label='Frustrated')
 
-    ax.legend(handles=(c1, c2, c3, c4, c5, c6),
-              labels=("Happy", "Sad", "Neutral", "Angry", "Excited", "Frustrated"))
-
-    # 🔽🔽🔽 --- savefig 수정 --- 🔽🔽🔽
-    # facecolor 옵션을 제거하면 기본 흰색 배경으로 저장됩니다.
-    fig.savefig(
-        save_path + '/discrimination.png',
-        dpi=300, bbox_inches='tight')
-
-    plt.close(fig)  # figure 객체를 닫아줍니다.
-    return
-
-def discrimination_meld_save_scatter(result, label, save_path, dr_type=1):
-    if dr_type == 0:
-        dr_name = 'UMAP'
-    elif dr_type == 1:
-        dr_name = 'TSNE'
+    if dataset_name == "iemocap":
+        classes = [0, 1, 2, 3, 4, 5]
+        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
+        labels = ["Happy", "Sad", "Neutral", "Angry", "Excited", "Frustrated"]
+    elif dataset_name == "iemocap_4":
+        classes = [0, 1, 2, 3]
+        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
+        labels = ["Happy", "Sad", "Neutral", "Angry"]
+    elif dataset_name == "meld":
+        classes = [0, 1, 3, 4, 6]
+        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
+        labels = ["Neutral", "Surprise", "Sadness", "Joy", "Anger"]
     else:
-        dr_name = ''
+        raise ValueError(f"Unknown dataset_name: {dataset_name}")
 
-    neu = np.where(label == 0)[0]
-    sur = np.where(label == 1)[0]
-    sad = np.where(label == 3)[0]
-    joy = np.where(label == 4)[0]
-    ang = np.where(label == 6)[0]
+    handles = []
+    for c_idx, color, label_str in zip(classes, colors, labels):
+        indices = np.where(label == c_idx)[0]
+        if len(indices) > 0:
+            scatter = ax.scatter(result[indices, 0], result[indices, 1], marker="o", color=color, s=_s, label=label_str)
+            handles.append(scatter)
 
-    neu_emb = result[neu]
-    sur_emb = result[sur]
-    sad_emb = result[sad]
-    joy_emb = result[joy]
-    ang_emb = result[ang]
+    if handles:
+        ax.legend(handles=handles, labels=[h.get_label() for h in handles], title="Emotions", loc='best', fontsize=12, title_fontsize=14)
 
-    colors = [
-        '#1f77b4',  # Tableau Blue
-        '#ff7f0e',  # Tableau Orange
-        '#2ca02c',  # Tableau Green
-        '#d62728',  # Tableau Red
-        '#9467bd',  # Tableau Purple
-    ]
-
-    plt.clf()
-
-    # 🔽🔽🔽 --- 수정/추가된 부분 시작 --- 🔽🔽🔽
-    # 현재 figure와 axes 객체를 가져옵니다.
-    fig, ax = plt.subplots(figsize=(8, 8))  # figsize로 그림 크기 조절 가능
-
-    # X축과 Y축의 눈금을 모두 제거합니다.
-    ax.set_xticks([])
-    ax.set_yticks([])
-
-    # X축과 Y축의 레이블을 제거합니다.
-    ax.set_xlabel('')
-    ax.set_ylabel('')
-
-    # 그래프의 테두리(spines)를 모두 보이지 않게 설정합니다.
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.spines['bottom'].set_visible(False)
-    ax.spines['left'].set_visible(False)
-    # 🔼🔼🔼 --- 수정/추가된 부분 끝 --- 🔼🔼🔼
-
-    _s = 12.
-    # plt.scatter를 ax.scatter로 변경합니다.
-
-    c3 = ax.scatter(neu_emb[:, 0], neu_emb[:, 1], marker="o", color=colors[0], s=_s, label='Neutral')
-    c1 = ax.scatter(sur_emb[:, 0], sur_emb[:, 1], marker="o", color=colors[1], s=_s, label='Surprise')
-    c2 = ax.scatter(sad_emb[:, 0], sad_emb[:, 1], marker="o", color=colors[2], s=_s, label='Sadness')
-    c5 = ax.scatter(joy_emb[:, 0], joy_emb[:, 1], marker="o", color=colors[3], s=_s, label='Joy')
-    c4 = ax.scatter(ang_emb[:, 0], ang_emb[:, 1], marker="o", color=colors[4], s=_s, label='Anger')
-
-    ax.legend(handles=(c1, c2, c3, c4, c5),
-              labels=("Neutral", "Surprise", "Sadness", "Joy", "Anger"))
-
-    # 🔽🔽🔽 --- savefig 수정 --- 🔽🔽🔽
-    # facecolor 옵션을 제거하면 기본 흰색 배경으로 저장됩니다.
-    fig.savefig(
-        save_path + '/discrimination.png',
-        dpi=300, bbox_inches='tight')
-
-    plt.close(fig)  # figure 객체를 닫아줍니다.
+    save_filename = os.path.join(save_path, f"discrimination_{dr_name.lower()}.png")
+    fig.savefig(save_filename, dpi=300, bbox_inches='tight')
+    plt.close(fig)
+    print(f"Class Discrimination plot saved as {save_filename}")
     return
 
 def plot_and_save_confusion_matrix(golds, preds, class_labels:dict, save_path="confusion_matrix.png",
@@ -589,6 +498,199 @@ def plot_and_save_confusion_matrix(golds, preds, class_labels:dict, save_path="c
 
 
 
+def plot_modality_alignment(result, label, save_dir, dr_name, dataset_name="iemocap"):
+    """
+    Plots modality alignment space with distinct colors for modalities.
+    No class discrimination is shown (all points are circles).
+    Lines connect corresponding samples across modalities.
+    """
+    a, t, v = result
+    
+    modality_labels = ["Audio", "Text", "Visual"]
+    modality_colors = ['#1f77b4', '#ff7f0e', '#2ca02c'] # Blue, Orange, Green
+    
+    plt.clf()
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    
+    _s = 20. # Marker size
+    
+    # Draw lines connecting same samples across modalities
+    for i in range(len(a)):
+        points_x = [a[i, 0], t[i, 0], v[i, 0], a[i, 0]]
+        points_y = [a[i, 1], t[i, 1], v[i, 1], a[i, 1]]
+        ax.plot(points_x, points_y, color='gray', linewidth=0.2, alpha=0.15, zorder=1)
+        
+    # Audio
+    ax.scatter(a[:, 0], a[:, 1], marker='o', color=modality_colors[0], s=_s, alpha=0.8, zorder=2)
+    # Text
+    ax.scatter(t[:, 0], t[:, 1], marker='o', color=modality_colors[1], s=_s, alpha=0.8, zorder=2)
+    # Visual
+    ax.scatter(v[:, 0], v[:, 1], marker='o', color=modality_colors[2], s=_s, alpha=0.8, zorder=2)
+        
+    # Legend 1: Modalities (Colors)
+    color_handles = [Line2D([0], [0], marker='o', color='w', label=modality_labels[i],
+                            markerfacecolor=modality_colors[i], markersize=10) for i in range(len(modality_labels))]
+    legend1 = ax.legend(handles=color_handles, title="Modalities", loc='best', fontsize=24, title_fontsize=24)
+    ax.add_artist(legend1)
+    
+    plt.title(f"{dataset_name.upper()} Modality Alignment ({dr_name})", fontsize=16, pad=20)
+    
+    os.makedirs(save_dir, exist_ok=True)
+    save_filename = os.path.join(save_dir, f"modality_alignment_{dr_name.lower().replace('-', '')}.png")
+    fig.savefig(save_filename, dpi=300, bbox_inches='tight')
+    plt.close(fig)
+    print(f"Modality Alignment plot saved as {save_filename}")
+
+def plot_modality_alignment_dual(result, label, save_dir, dr_name, dataset_name="iemocap"):
+    """
+    Dual-encoded modality alignment plot.
+    Colors = Emotion classes (for class discrimination visibility).
+    Shapes = Modalities (circle=Audio, square=Text, triangle=Visual).
+    Lines connect corresponding samples across modalities.
+    """
+    a, t, v = result
+
+    if dataset_name == "iemocap":
+        classes = [0, 1, 2, 3, 4, 5]
+        class_colors = ['#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#42d4f4']
+        class_labels = ["Happy", "Sad", "Neutral", "Angry", "Excited", "Frustrated"]
+    elif dataset_name == "iemocap_4":
+        classes = [0, 1, 2, 3]
+        class_colors = ['#e6194b', '#3cb44b', '#4363d8', '#f58231']
+        class_labels = ["Happy", "Sad", "Neutral", "Angry"]
+    else:  # meld
+        classes = [0, 1, 3, 4, 6]
+        class_colors = ['#4363d8', '#f58231', '#3cb44b', '#e6194b', '#911eb4']
+        class_labels = ["Neutral", "Surprise", "Sadness", "Joy", "Anger"]
+
+    modality_labels = ["Audio", "Text", "Visual"]
+    modality_markers = ['o', 's', '^']       # circle, square, triangle
+    modality_sizes   = [22., 20., 28.]       # slightly tweaked for visual balance
+    modality_data    = [a, t, v]
+
+    plt.clf()
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.set_xticks([])
+    ax.set_yticks([])
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
+    # Draw alignment lines
+    for i in range(len(a)):
+        pts_x = [a[i, 0], t[i, 0], v[i, 0], a[i, 0]]
+        pts_y = [a[i, 1], t[i, 1], v[i, 1], a[i, 1]]
+        ax.plot(pts_x, pts_y, color='gray', linewidth=0.2, alpha=0.12, zorder=1)
+
+    # Scatter per (class, modality)
+    for c_idx, color, c_label in zip(classes, class_colors, class_labels):
+        indices = np.where(label == c_idx)[0]
+        if len(indices) == 0:
+            continue
+        for m_idx, (data, marker, ms) in enumerate(zip(modality_data, modality_markers, modality_sizes)):
+            ax.scatter(
+                data[indices, 0], data[indices, 1],
+                marker=marker, color=color, s=ms, alpha=0.8,
+                edgecolors='none', zorder=2,
+            )
+
+    # Legend 1: Emotions (Colors)
+    emotion_handles = [
+        Line2D([0], [0], marker='o', color='w', label=c_label,
+               markerfacecolor=color, markersize=10, linestyle='None')
+        for color, c_label in zip(class_colors, class_labels)
+    ]
+    legend1 = ax.legend(handles=emotion_handles, title="Emotions",
+                        loc='upper left', fontsize=14, title_fontsize=16)
+    ax.add_artist(legend1)
+
+    # Legend 2: Modalities (Shapes)
+    marker_handles = [
+        Line2D([0], [0], marker=marker, color='w', label=modality_labels[i],
+               markerfacecolor='gray', markersize=12, linestyle='None')
+        for i, marker in enumerate(modality_markers)
+    ]
+    ax.legend(handles=marker_handles, title="Modalities",
+             loc='lower right', fontsize=14, title_fontsize=16)
+
+    plt.title(f"{dataset_name.upper()} Modality Alignment — Dual Encoded ({dr_name})",
+              fontsize=16, pad=20)
+
+    os.makedirs(save_dir, exist_ok=True)
+    save_filename = os.path.join(
+        save_dir, f"modality_alignment_dual_{dr_name.lower().replace('-', '')}.png")
+    fig.savefig(save_filename, dpi=300, bbox_inches='tight')
+    plt.close(fig)
+    print(f"Modality Alignment (Dual) plot saved as {save_filename}")
+
+def plot_independent_modality_distributions(results, label, save_dir, dr_name, dataset_name="iemocap"):
+    """
+    Plots independent modal reductions in a 1x3 grid side-by-side.
+    Colors = Emotions, Shapes = Modalities.
+    """
+    a, t, v = results
+    
+    if dataset_name == "iemocap":
+        classes = [0, 1, 2, 3, 4, 5]
+        class_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
+        class_labels = ["Happy", "Sad", "Neutral", "Angry", "Excited", "Frustrated"]
+    elif dataset_name == "iemocap_4":
+        classes = [0, 1, 2, 3]
+        class_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
+        class_labels = ["Happy", "Sad", "Neutral", "Angry"]
+    else: # meld
+        classes = [0, 1, 3, 4, 6]
+        class_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
+        class_labels = ["Neutral", "Surprise", "Sadness", "Joy", "Anger"]
+        
+    modality_labels = ["Audio", "Text", "Visual"]
+    modality_markers = ['o', 's', '^'] # Circle, Square, Triangle
+    
+    plt.clf()
+    fig, axes = plt.subplots(1, 3, figsize=(24, 8)) # 1x3 Grid format
+    
+    _s = 25.
+    handles_emotions = []
+    
+    for i, (ax, data, marker, mod_name) in enumerate(zip(axes, [a, t, v], modality_markers, modality_labels)):
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        ax.set_title(f"{mod_name} Space", fontsize=18, pad=10)
+        
+        for c_idx, color, label_str in zip(classes, class_colors, class_labels):
+            indices = np.where(label == c_idx)[0]
+            if len(indices) == 0: continue
+            scatter = ax.scatter(data[indices, 0], data[indices, 1], marker=marker, color=color, s=_s, alpha=0.8, label=label_str)
+            if i == 0: # Populate legend only from one axis
+                handles_emotions.append(scatter)
+                
+    # Generate Legend for Modalities Shapes
+    marker_handles = [Line2D([0], [0], marker=m, color='w', label=modality_labels[idx],
+                             markerfacecolor='gray', markersize=12) for idx, m in enumerate(modality_markers)]
+                             
+    # Mount legends strictly on the right external frame to not overlay data clusters or alter grid widths improperly
+    legend1 = axes[2].legend(handles=handles_emotions, title="Emotions", loc='upper left', bbox_to_anchor=(1, 1), fontsize=14, title_fontsize=16)
+    axes[2].add_artist(legend1)
+    
+    axes[2].legend(handles=marker_handles, title="Modalities", loc='lower left', bbox_to_anchor=(1, 0), fontsize=14, title_fontsize=16)
+    
+    plt.suptitle(f"{dataset_name.upper()} Independent Modality Distribution ({dr_name})", fontsize=22, y=1.05)
+    
+    os.makedirs(save_dir, exist_ok=True)
+    save_filename = os.path.join(save_dir, f"independent_distribution_{dr_name.lower().replace('-', '')}.png")
+    fig.savefig(save_filename, dpi=300, bbox_inches='tight')
+    plt.close(fig)
+    print(f"Independent Modality Distribution plot saved as {save_filename}")
+
 def get_logger(filepath: str, level=logging.INFO):
     logger = logging.getLogger(__name__)
 
@@ -609,3 +711,58 @@ def get_logger(filepath: str, level=logging.INFO):
     logger.addHandler(streamHandler)
 
     return logger
+
+def linear_cka(X, Y):
+    """
+    Computes Linear Centered Kernel Alignment (CKA).
+    Measures Representational Geometry Isomorphism (1.0 = highly correlated structures).
+    """
+    # Center columns
+    X_c = X - np.mean(X, axis=0)
+    Y_c = Y - np.mean(Y, axis=0)
+    
+    # Calculate similarity matrices
+    C_XX = X_c @ X_c.T
+    C_YY = Y_c @ Y_c.T
+    
+    # Frobenius norm
+    num = np.sum(C_XX * C_YY)
+    den1 = np.sqrt(np.sum(C_XX * C_XX))
+    den2 = np.sqrt(np.sum(C_YY * C_YY))
+    
+    if den1 == 0 or den2 == 0:
+        return 0.0
+    return num / (den1 * den2)
+    
+def recall_at_k(X, Y, k=1):
+    """
+    Computes Cross-Modal Instance Retrieval Recall@K using Cosine Similarity.
+    X -> Y Retrieval Task.
+    """
+    X_norm = X / (np.linalg.norm(X, axis=1, keepdims=True) + 1e-8)
+    Y_norm = Y / (np.linalg.norm(Y, axis=1, keepdims=True) + 1e-8)
+    
+    sim_matrix = X_norm @ Y_norm.T # (N, N)
+    
+    correct = 0
+    N = X.shape[0]
+    for i in range(N):
+        top_k_indices = np.argsort(sim_matrix[i])[::-1][:k]
+        if i in top_k_indices:
+            correct += 1
+            
+    return correct / N
+
+def calculate_advanced_modality_metrics(X_raw):
+    a, t, v = X_raw[0], X_raw[1], X_raw[2]
+    metrics = {}
+    
+    metrics['CKA (Audio-Text)'] = linear_cka(a, t)
+    metrics['CKA (Text-Visual)'] = linear_cka(t, v)
+    metrics['CKA (Visual-Audio)'] = linear_cka(v, a)
+    
+    metrics['Recall@1 (Audio -> Text)'] = recall_at_k(a, t, k=1)
+    metrics['Recall@1 (Text -> Visual)'] = recall_at_k(t, v, k=1)
+    metrics['Recall@1 (Visual -> Audio)'] = recall_at_k(v, a, k=1)
+    
+    return metrics

@@ -1,51 +1,52 @@
 meld:
 
-  seed: 20242025
+  seed: 69
   device: "cuda:2"
   data_dir_path: "data"
   save_model_checkpoint: "model_checkpoints/meld"
   save_analysis_path: "save/analysis/meld"
   log_in_comet: False
   experiment_in_comet: False
-  n_train_dialogues: 1008
-  n_train_utterances:
+  n_train_dialogues: 1432
+  n_train_utterances: 13708
   n_valid_dialogues: 144
   n_valid_utterances:
   n_test_dialogues: 280
   n_test_utterances:
   modalities: "atv"
 
-  from_begin: False
+  hybrid: false
+  specific: false
+
+  from_begin: false
+
   epochs: 300
   batch_size: 128
-  scheduler: "cosineLR" # <- [stepLR,multistepLR, reduceLR, cyclicLR, cosineLR]
+  scheduler: "cosineLR_linearWarmUp" # <- [stepLR,multistepLR, reduceLR, cyclicLR, cosineLR]
   T: 5 # duration of scheduler
   learning_rate: 0.0003
   weight_decay: 0.03
 
   encoder_layers: 2 # [2, 3, 4] test
-  encoder_attention_heads: 8  # [4, 6, 8] test , i.e., each head's dim [96, 64, 48]
-  encoder_embed_dim: 512 # [256, 384, 512] test
+  encoder_attention_heads: 6 # [4, 6, 8] test , i.e., each head's dim [96, 64, 48]
+  encoder_embed_dim: 384 # [256, 384, 512] test
   ffn_embed_scaler: 4 # encoder_embed_dim * 4
   sub_classifier_dim: 128
   num_classes: 7
 
-  do_NCE: True
+  do_NACL: True
   do_MAE: True
   do_VATT: False
-  do_CE: True
+  do_CE: False
   do_WCE : False
 
-  mask_prob_a: 0.5
-  mask_prob_t: 0.5
-  mask_prob_v: 0.5
+  mask_prob_a: 0.7
+  mask_prob_t: 0.7
+  mask_prob_v: 0.7
 
   topk: 3
-  at_NCE_lambda: 1
-  tv_NCE_lambda: 1
-  av_NCE_lambda: 1
-  multimodal_MNA_lambda: 1
-  multimodal_MAE_lambda: 1
+  NACL_lambda: 1
+  MAE_lambda: 1
 
   temperature: 0.7
   max_grad_value: -1
@@ -59,7 +60,6 @@ meld:
   num_edge_dis: 51
   multi_hop_max_dist: 51
 
-  specific : False # model-specific or -agnostic encoder
   do_MIM: False
 
   edge_type: multi_hop # single_hop, multi_hop

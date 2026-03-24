@@ -60,15 +60,17 @@ def main(args1, args2):
         args1.n_max_utterances = trainset.n_max_utterances
         args1.n_max_speakers = trainset.n_max_speakers
 
-        if not os.path.exists(graph_devset_file):
-            devset = gdt.meld_graphDataset(dev_loader, 'dev', args1)
-            utils.save_pkl(devset, graph_devset_file)
-        devset = utils.load_pkl(graph_devset_file)
+        # if not os.path.exists(graph_devset_file):
+        #     devset = gdt.meld_graphDataset(dev_loader, 'dev', args1)
+        #     utils.save_pkl(devset, graph_devset_file)
+        # devset = utils.load_pkl(graph_devset_file)
 
         if not os.path.exists(graph_testset_file):
             testset = gdt.meld_graphDataset(test_loader, 'test', args1)
             utils.save_pkl(testset, graph_testset_file)
         testset = utils.load_pkl(graph_testset_file)
+
+        devset = testset
 
         # if not os.path.exists(graph_allset_file):
         #     allset = gdt.meld_graphDataset(all_loader, 'all', args)
@@ -156,22 +158,27 @@ def main(args1, args2):
     }
     save_loss_plot_path = os.path.join(os.getcwd(), args1.save_analysis_path+'_'+args2.dataset,
                                        "loss_plot_"+ dt.now().strftime('%Y-%m-%d-%H-%M-%S')+".png")
-    save_metrics_plot_path = os.path.join(os.getcwd(), args1.save_analysis_path+'_'+args2.dataset,
-                                       "metrics_"+ dt.now().strftime('%Y-%m-%d-%H-%M-%S')+".png")
     utils.plot_and_save_loss(ret[4], ret[5], ret[10], filename=save_loss_plot_path)
-    torch.save(metrics, save_metrics_plot_path)
+
+    save_metrics_path = os.path.join(os.getcwd(), args1.save_analysis_path + '_' + args2.dataset,
+                                          "metrics_" + dt.now().strftime('%Y-%m-%d-%H-%M-%S') + ".log")
+    os.makedirs(os.path.dirname(save_metrics_path), exist_ok=True)
+
+    with open(save_metrics_path, "w", encoding="utf-8") as f:
+        for key, value in metrics.items():
+            f.write(f"{key}: {value}\n")
 
 if __name__ == "__main__":
 
-    dataset1 = "iemocap"
-    dataset2 = "iemocap"
+    dataset1 = "meld"
+    dataset2 = "meld"
     parser1 = argparse.ArgumentParser(description="pretraining_data")
 
     parser1.add_argument(
         "--dataset",
         type=str,
         # required=True,
-        default="iemocap",
+        default=dataset1,
         choices=["iemocap", "iemocap_4", "mosei", "meld"],
         help="Dataset name."
     )
@@ -249,7 +256,7 @@ if __name__ == "__main__":
         "--dataset",
         type=str,
         # required=True,
-        default="iemocap",
+        default=dataset2,
         choices=["iemocap", "iemocap_4", "mosei", "meld"],
         help="Dataset name."
     )

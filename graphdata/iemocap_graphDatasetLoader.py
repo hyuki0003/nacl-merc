@@ -170,9 +170,10 @@ class iemocap_4_graphDataset():
 
     def _set_relations(self, speaker_tensor):
         """
-        Relation 1 : Interlocuter Relationship,
-        Relation 2 : Intralocuter Relationship,
-        Relation 3 : Intermodality relation.
+        Relation 1 : Interlocuter Relationship, i.e., utterance sequences
+        Relation 2 : Intralocuter Relationship, i.e., individual
+        Relation 3 : Intermodality relation without directly linking audio and text modalities, preventing
+                     the model from confusing the task with ASR (Automatic Speech Recognition) task. It contains self-connection.
         """
 
         # Relation 1

@@ -76,7 +76,7 @@ class EmotionHeartModel(FairseqEncoderModel):
         if args.do_NACL:
             self.NACLloss = NACL_loss(args.temperature)
         elif args.do_VATT:
-            self.NACLloss = infoNCE_loss(args.temperature)
+            self.infoNCE_loss = infoNCE_loss(args.temperature)
 
 
     def mask(self, tensor, pad_mask, mask_ratio=0.15):
@@ -207,14 +207,14 @@ class EmotionHeartModel(FairseqEncoderModel):
                         continue
 
                     source_all_mask = padding_mask_all[m_source]
-                    source_all_mask_sim = source_all_mask.unsqueeze(2) | source_all_mask.unsqueeze(1)
-
+                    # source_all_mask_sim = source_all_mask.unsqueeze(2) | source_all_mask.unsqueeze(1)
+                    target_all_mask = padding_mask_all[m_target]
                     masked_neighbor_aligned_contrastive_loss += (
                                 scaler * normalized_loss_weights[m_source] * self.NACLloss(encoded_all_tokens[m_source],
                                                                                           encoded_all_tokens[m_target],
-                                                                                          source_all_mask_sim,
-                                                                                          self.args.topk,
-                                                                                          self.args.num_classes))
+                                                                                          source_all_mask,
+                                                                                          target_all_mask,
+                                                                                          self.args.topk))
 
         # self.x += 1
         # if self.x == 10:
@@ -279,17 +279,17 @@ class EmotionHeartModel(FairseqEncoderModel):
         if self.n_modalities > 1:
             scaler = 1/(self.n_modalities+(self.n_modalities-1))
         if self.args.do_NACL:
-            padding_mask_sim = mask.unsqueeze(2) | mask.unsqueeze(1)
+            # padding_mask_sim = mask.unsqueeze(2) | mask.unsqueeze(1)
             for m_source in self.modalities:
                 for m_target in self.modalities:
                     if m_source == m_target:
                         continue
                     masked_neighbor_aligned_contrastive_loss += (
                             scaler * self.NACLloss(encoded_all_tokens[m_source],
-                                                                                          encoded_all_tokens[m_target],
-                                                                                          padding_mask_sim,
-                                                                                          self.args.topk,
-                                                                                          self.args.num_classes))
+                                                    encoded_all_tokens[m_target],
+                                                    mask,
+                                                    mask,
+                                                     self.args.topk))
 
         return masked_neighbor_aligned_contrastive_loss
 
@@ -331,7 +331,7 @@ class EmotionHeartModel(FairseqEncoderModel):
                     if m_source == m_target:
                         continue
                     VATT_loss += (
-                            scaler * self.NACLloss(encoded_all_tokens[m_source],
+                            scaler * self.infoNCE_loss(encoded_all_tokens[m_source],
                                                   encoded_all_tokens[m_target],
                                                   padding_mask_sim,
                                                   )
@@ -361,7 +361,7 @@ class EmotionHeartEncoder(FairseqEncoder):
                     num_speakers=n_max_speakers,
                     num_degree=args.num_degree,
                     num_edges=args.num_edges,
-                    num_modalities=1,
+                    num_modalities=self.n_modalities,
                     num_spatial=args.max_dist,
                     num_edge_dis=args.num_edge_dis,
                     edge_type=args.edge_type,
@@ -383,11 +383,11 @@ class EmotionHeartEncoder(FairseqEncoder):
         else:
             self.graph_encoder = GraphormerGraphEncoder(
                 # < for graphormer
-                num_nodes=None,#num_nodes,
-                num_speakers=None,#n_max_speakers,
-                num_degree=None,#args.num_degree,
+                num_nodes=num_nodes,
+                num_speakers=n_max_speakers,
+                num_degree=args.num_degree,
                 num_edges=args.num_edges,
-                num_modalities=1,#self.n_modalities,
+                num_modalities=self.n_modalities,
                 num_spatial=args.max_dist,
                 num_edge_dis=args.num_edge_dis,
                 edge_type=args.edge_type,
@@ -408,8 +408,8 @@ class EmotionHeartEncoder(FairseqEncoder):
         if args.hybrid:
             self.graph_encoder = GraphormerGraphEncoder(
                 # < for graphormer
-                num_nodes=None,
-                num_speakers=None,
+                num_nodes=num_nodes,
+                num_speakers=n_max_speakers,
                 num_degree=args.num_degree,
                 num_edges=args.num_edges,
                 num_modalities=self.n_modalities,

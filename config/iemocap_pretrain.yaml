@@ -18,12 +18,12 @@ iemocap:
   hybrid : False
   from_begin: False
 
-  epochs: 200
+  epochs: 300
   batch_size: 12
   scheduler: "cosineLR_linearWarmUp" #"cosineLR_linearWarmUp" # <- [None, stepLR,multistepLR, reduceLR, cyclicLR, cosineLR, cosinLR_linearWarmUp]
   T: 5 # duration of scheduler
-  learning_rate: 0.00007
-  weight_decay: 0.0001
+  learning_rate: 0.0001
+  weight_decay: 0.001
 
   do_NACL: True
   do_MAE: True
@@ -34,7 +34,7 @@ iemocap:
   do_VATT: False
   do_DGI: False
 
-  topk: 15
+  topk: 3
   at_NCE_lambda: 1
   tv_NCE_lambda: 1
   av_NCE_lambda: 1
@@ -63,9 +63,9 @@ iemocap:
 
 
   do_mask: True
-  mask_prob_v: 0.75
-  mask_prob_a: 0.75
-  mask_prob_t: 0.75
+  mask_prob_v: 0.7
+  mask_prob_a: 0.7
+  mask_prob_t: 0.7
 
   specific : False # model-specific or -agnostic encoder
   do_MIM: False

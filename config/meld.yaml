@@ -1,40 +1,46 @@
-iemocap:
+meld:
 
   seed: 69
   device: "cuda:2"
   data_dir_path: "data"
-  save_model_checkpoint: "model_checkpoints/iemocap_4"
-  save_analysis_path: "save/analysis/iemocap_4"
+  save_model_checkpoint: "model_checkpoints/meld"
+  save_analysis_path: "save/analysis/meld"
   log_in_comet: False
   experiment_in_comet: False
-  n_train_dialogues: 108
-  n_train_utterances: 3200
-  n_valid_dialogues: 12
-  n_valid_utterances: 400
-  n_test_dialogues: 31
-  n_test_utterances: 943
-  modalities: "atv" # ["a", "t", "v", "at", "tv", "av", "atv"]
+  n_train_dialogues: 1039
+  n_train_utterances: 9989
+  n_valid_dialogues: 114
+  n_valid_utterances: 1109
+  n_test_dialogues: 280
+  n_test_utterances: 2610
+  modalities: "atv"
 
   unimodal_inference: false
-  from_scratch: false
-
-  do_finetune: true
-
   hybrid: false
   specific: false
 
-  epochs: 100
-  batch_size: 12
+  do_finetune: false
+  from_scratch: true
+
+  epochs: 200
+  batch_size: 128
   scheduler: "cosineLR" # <- [stepLR,multistepLR, reduceLR, cyclicLR, cosineLR]
-  T: 15 # duration of scheduler
+  T: 10 # duration of scheduler
   learning_rate: 0.0001
   weight_decay: 0.
+
+  encoder_layers: 4 # [2, 3, 4] test
+  encoder_attention_heads: 6  # [4, 6, 8] test , i.e., each head's dim [96, 64, 48]
+  encoder_embed_dim: 384 # [256, 384, 512] test
+  ffn_embed_scaler: 4 # encoder_embed_dim * 4
+  sub_classifier_dim: 128
+  num_classes: 5
 
   do_CE: True
   do_WCE : False
   do_VATT: false
   do_DGI : false
-  do_NACL: true
+  do_NACL: True
   topk: 3
   temperature: 0.7
 
@@ -55,12 +61,6 @@ iemocap:
   num_edge_dis: 51
 
   multi_hop_max_dist: 51
-  encoder_layers: 2 # [2, 3, 4] test
-  encoder_attention_heads: 6  # [4, 6, 8] test , i.e., each head's dim [96, 64, 48]
-  encoder_embed_dim: 384 # [256, 384, 512] test
-  ffn_embed_scaler: 4 # encoder_embed_dim * 4
-  sub_classifier_dim: 128
-  num_classes: 6
 
   do_mask: False
   do_MIM: False

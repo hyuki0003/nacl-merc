@@ -36,8 +36,6 @@ class Optim:
             )
 
     def get_scheduler(self, sch):
-        print(f"DEBUG: Scheduler name passed: {sch}")
-
         print("Using Scheduler")
         if sch == "reduceLR":
             sched = lr_scheduler.ReduceLROnPlateau(self.optimizer, "min", patience=self.T)

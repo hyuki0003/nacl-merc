@@ -42,12 +42,13 @@ class FinetuneModel(BaseFairseqModel):
         self.is_intra_dataset = intra_dataset
 
         self.model = model
-        for name, param in self.model.named_parameters():
-            print(f"Layer '{name}' - Parameter '{param.requires_grad}' ")
-        # self.freeze_encoder()
-
         self.activation = nn.GELU()
         self.layer_norm = nn.LayerNorm(args.encoder_embed_dim)
+
+
+        for name, param in self.model.named_parameters():
+            print(f"Layer '{name}' - Parameter '{param.requires_grad}' ")
+
 
         if intra_dataset == False:
             data_embedding_dims = args.dataset_embedding_dims[args.dataset]
@@ -71,6 +72,21 @@ class FinetuneModel(BaseFairseqModel):
                     # self.activation,
                     # nn.Linear(args.encoder_embed_dim, args.encoder_embed_dim)
                 )
+            for name, module in list(self.model.named_children()):
+                if not name.startswith("encoder"):
+                    delattr(self.model, name)
+
+            self.freeze_encoder("encoder.graph_encoder.layers.1")
+
+
+        else:
+            for name, module in list(self.model.named_children()):
+                if not name.startswith("encoder") and not name.startswith("input_projection"):
+                    delattr(self.model, name)
+
+
+        for name, param in self.model.named_parameters():
+            print(f"Layer '{name}' - Parameter '{param.requires_grad}' ")
 
 
         if args.do_NACL == True:
@@ -107,12 +123,12 @@ class FinetuneModel(BaseFairseqModel):
         self.linear_fusion = nn.Sequential(
             nn.LayerNorm(self.n_modalities * args.encoder_embed_dim),
             nn.Linear(self.n_modalities * args.encoder_embed_dim, args.encoder_embed_dim),
-            self.activation,
         )
 
         self.classifier = None
         if self.n_modalities == 1:
             self.classifier = nn.Sequential(
+                self.activation,
                 nn.Dropout(args.dropout),
                 nn.Linear(args.encoder_embed_dim, args.num_classes)
             )
@@ -125,10 +141,11 @@ class FinetuneModel(BaseFairseqModel):
             #     nn.Linear(args.encoder_embed_dim // 4, args.num_classes)
             # )
             self.classifier = nn.Sequential(
+                self.activation,
                 nn.Dropout(args.dropout),
-                # nn.Linear(args.encoder_embed_dim, args.encoder_embed_dim // 4),
+                # nn.Linear(args.encoder_embed_dim, args.sub_classifier_dim),
                 # self.activation,
-                # nn.Dropout(args.dropout),
+                # nn.Linear(args.sub_classifier_dim, args.num_classes)
                 nn.Linear(args.encoder_embed_dim, args.num_classes)
             )
 
@@ -140,17 +157,18 @@ class FinetuneModel(BaseFairseqModel):
         if self.n_modalities >1:
             self.unimodal_classifiers = nn.ModuleList([
                 nn.Sequential(
+                    self.activation,
                     nn.Dropout(args.dropout),
                     nn.Linear(args.encoder_embed_dim, args.num_classes)
                 ) for _ in range(self.n_modalities)
             ])
 
 
-    def freeze_encoder(self):
+    def freeze_encoder(self,param_name):
         for name, param in self.model.named_parameters():
             # param.requires_grad = False
             # print(f" Layer '{name}' is frozen.")
-            if not name.startswith("encoder.graph_encoder.layers.1"):
+            if name.startswith(param_name):
                 param.requires_grad = False
                 print(f" Layer '{name}' is frozen.")
             # if not name.startswith("encoder.graph_encoder.layers.3"):
@@ -262,8 +280,8 @@ class FinetuneModel(BaseFairseqModel):
                         source = nodes[:, i, :, :]
                         target = nodes[:, j, :, :]
 
-                        between_modality_loss += self.NACLloss(source, target, sim_mask, self.args.topk,
-                                                               self.args.num_classes)
+                        between_modality_loss += self.NACLloss(source, target, mask, mask, self.args.topk,
+                                                               )
                 between_modality_loss /= cnt
                 between_modality_loss *= self.args.NACL_lambda
 
@@ -285,6 +303,10 @@ class FinetuneModel(BaseFairseqModel):
             fused_emb = self.linear_fusion[2](fused_emb)
         else:
             fused_emb = self.linear_fusion(fused_emb)
+            # fused_emb = torch.stack(graphs, dim=-1)
+            # graphs = fused_emb[inverted_mask, :]
+            #
+            # fused_emb = self.linear_fusion(fused_emb).squeeze()
 
 
         logits = self.classifier(fused_emb)[inverted_mask]
@@ -320,7 +342,7 @@ class FinetuneModel(BaseFairseqModel):
                 #
                 # class_weights = normalized_weights.to(logits.device)
 
-            cross_entropy_loss = nn.functional.cross_entropy(logits, labels, weight=class_weights)
+            cross_entropy_loss = F.cross_entropy(logits, labels, weight=class_weights)
 
             # --- Unimodal Auxiliary CE Loss ---
             # graphs: (Valid_N, D, M)  →  graphs[:, :, i] gives (Valid_N, D) for modality i
