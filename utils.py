@@ -406,7 +406,7 @@ def alignment_line_save_scatter(result, label, save_path, dr_type=1):
     return
 
 
-def discrimination_save_scatter(result, label, save_path, dr_type=1, dataset_name="iemocap"):
+def discrimination_save_scatter(result, label, save_path, dr_type=1, dataset_name="iemocap", prefix="discrimination"):
     if dr_type == 0:
         dr_name = 'UMAP'
     elif dr_type == 1:
@@ -451,8 +451,8 @@ def discrimination_save_scatter(result, label, save_path, dr_type=1, dataset_nam
 
     if handles:
         ax.legend(handles=handles, labels=[h.get_label() for h in handles], title="Emotions", loc='best', fontsize=12, title_fontsize=14)
-
-    save_filename = os.path.join(save_path, f"discrimination_{dr_name.lower()}.png")
+ 
+    save_filename = os.path.join(save_path, f"{prefix}_{dr_name.lower()}.png")
     fig.savefig(save_filename, dpi=300, bbox_inches='tight')
     plt.close(fig)
     print(f"Class Discrimination plot saved as {save_filename}")
@@ -498,11 +498,10 @@ def plot_and_save_confusion_matrix(golds, preds, class_labels:dict, save_path="c
 
 
 
-def plot_modality_alignment(result, label, save_dir, dr_name, dataset_name="iemocap"):
+def plot_modality_alignment(result, label, save_dir, dr_name, dataset_name="iemocap", prefix="modality_alignment"):
     """
     Plots modality alignment space with distinct colors for modalities.
     No class discrimination is shown (all points are circles).
-    Lines connect corresponding samples across modalities.
     """
     a, t, v = result
     
@@ -520,12 +519,6 @@ def plot_modality_alignment(result, label, save_dir, dr_name, dataset_name="iemo
     
     _s = 20. # Marker size
     
-    # Draw lines connecting same samples across modalities
-    for i in range(len(a)):
-        points_x = [a[i, 0], t[i, 0], v[i, 0], a[i, 0]]
-        points_y = [a[i, 1], t[i, 1], v[i, 1], a[i, 1]]
-        ax.plot(points_x, points_y, color='gray', linewidth=0.2, alpha=0.15, zorder=1)
-        
     # Audio
     ax.scatter(a[:, 0], a[:, 1], marker='o', color=modality_colors[0], s=_s, alpha=0.8, zorder=2)
     # Text
@@ -542,17 +535,16 @@ def plot_modality_alignment(result, label, save_dir, dr_name, dataset_name="iemo
     plt.title(f"{dataset_name.upper()} Modality Alignment ({dr_name})", fontsize=16, pad=20)
     
     os.makedirs(save_dir, exist_ok=True)
-    save_filename = os.path.join(save_dir, f"modality_alignment_{dr_name.lower().replace('-', '')}.png")
+    save_filename = os.path.join(save_dir, f"{prefix}_{dr_name.lower().replace('-', '')}.png")
     fig.savefig(save_filename, dpi=300, bbox_inches='tight')
     plt.close(fig)
     print(f"Modality Alignment plot saved as {save_filename}")
 
-def plot_modality_alignment_dual(result, label, save_dir, dr_name, dataset_name="iemocap"):
+def plot_modality_alignment_dual(result, label, save_dir, dr_name, dataset_name="iemocap", prefix="modality_alignment_dual"):
     """
     Dual-encoded modality alignment plot.
     Colors = Emotion classes (for class discrimination visibility).
     Shapes = Modalities (circle=Audio, square=Text, triangle=Visual).
-    Lines connect corresponding samples across modalities.
     """
     a, t, v = result
 
@@ -580,12 +572,6 @@ def plot_modality_alignment_dual(result, label, save_dir, dr_name, dataset_name=
     ax.set_yticks([])
     for spine in ax.spines.values():
         spine.set_visible(False)
-
-    # Draw alignment lines
-    for i in range(len(a)):
-        pts_x = [a[i, 0], t[i, 0], v[i, 0], a[i, 0]]
-        pts_y = [a[i, 1], t[i, 1], v[i, 1], a[i, 1]]
-        ax.plot(pts_x, pts_y, color='gray', linewidth=0.2, alpha=0.12, zorder=1)
 
     # Scatter per (class, modality)
     for c_idx, color, c_label in zip(classes, class_colors, class_labels):
@@ -623,12 +609,12 @@ def plot_modality_alignment_dual(result, label, save_dir, dr_name, dataset_name=
 
     os.makedirs(save_dir, exist_ok=True)
     save_filename = os.path.join(
-        save_dir, f"modality_alignment_dual_{dr_name.lower().replace('-', '')}.png")
+        save_dir, f"{prefix}_{dr_name.lower().replace('-', '')}.png")
     fig.savefig(save_filename, dpi=300, bbox_inches='tight')
     plt.close(fig)
     print(f"Modality Alignment (Dual) plot saved as {save_filename}")
 
-def plot_independent_modality_distributions(results, label, save_dir, dr_name, dataset_name="iemocap"):
+def plot_independent_modality_distributions(results, label, save_dir, dr_name, dataset_name="iemocap", prefix="independent_distribution"):
     """
     Plots independent modal reductions in a 1x3 grid side-by-side.
     Colors = Emotions, Shapes = Modalities.
@@ -664,7 +650,6 @@ def plot_independent_modality_distributions(results, label, save_dir, dr_name, d
         ax.spines['right'].set_visible(False)
         ax.spines['bottom'].set_visible(False)
         ax.spines['left'].set_visible(False)
-        ax.set_title(f"{mod_name} Space", fontsize=18, pad=10)
         
         for c_idx, color, label_str in zip(classes, class_colors, class_labels):
             indices = np.where(label == c_idx)[0]
@@ -683,10 +668,8 @@ def plot_independent_modality_distributions(results, label, save_dir, dr_name, d
     
     axes[2].legend(handles=marker_handles, title="Modalities", loc='lower left', bbox_to_anchor=(1, 0), fontsize=14, title_fontsize=16)
     
-    plt.suptitle(f"{dataset_name.upper()} Independent Modality Distribution ({dr_name})", fontsize=22, y=1.05)
-    
     os.makedirs(save_dir, exist_ok=True)
-    save_filename = os.path.join(save_dir, f"independent_distribution_{dr_name.lower().replace('-', '')}.png")
+    save_filename = os.path.join(save_dir, f"{prefix}_{dr_name.lower().replace('-', '')}.png")
     fig.savefig(save_filename, dpi=300, bbox_inches='tight')
     plt.close(fig)
     print(f"Independent Modality Distribution plot saved as {save_filename}")
