@@ -106,9 +106,9 @@ def main(args1, args2):
         pass
     log.debug("Building emotionheart...")
 
-    if args2.unimodal_inference and args2.modalities in ["a", "t", "v"]:
+    if not args2.do_finetune and not args2.from_scratch and args2.unimodal_inference:
         model = torch.load(
-            f"./{args1.save_model_checkpoint}/atv_best_model.pt",
+            f"./{args1.save_model_checkpoint}_{args2.dataset}/finetune_{args1.modalities}_best_model.pt",
             weights_only=False
         )
 
@@ -137,9 +137,8 @@ def main(args1, args2):
         model.args = args2
         model.modalities = args2.modalities
         model.n_modalities = len(args2.modalities)
-        model.encoder.args = args2
-
-        model.encoder.n_modalities = len(args2.modalities)
+        # model.model.encoder.args = args2
+        # model.model.encoder.n_modalities = len(args2.modalities)
 
         total_params = sum(p.numel() for p in model.parameters())
         print(f"Total parameters:     {total_params:,}")
@@ -148,9 +147,9 @@ def main(args1, args2):
             n_nodes = trainset.n_max_utterances
         else:
             n_nodes = max([trainset.n_max_utterances, testset.n_max_utterances, testset.n_max_utterances])
-    encoder = models.EmotionHeartEncoder(args1, n_nodes)
-    decoder = models.EmotionHeartDecoder(args1)
-    model = models.EmotionHeartModel(args1, encoder, decoder).to(args1.device)
+        encoder = models.EmotionHeartEncoder(args1, n_nodes)
+        decoder = models.EmotionHeartDecoder(args1)
+        model = models.EmotionHeartModel(args1, encoder, decoder).to(args1.device)
 
 
     opt1 = models.Optim(float(args1.learning_rate), int(args1.T), float(args1.max_grad_value), float(args1.weight_decay),
@@ -200,7 +199,7 @@ if __name__ == "__main__":
 
     #dataset list: ["iemocap", "iemocap_4", "mosei", "meld"]
     dataset1 = "meld"
-    dataset2 = "iemocap"
+    dataset2 = "iemocap_4"
     
     parser1 = argparse.ArgumentParser(description="pretraining_data")
 

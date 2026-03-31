@@ -170,8 +170,8 @@ def main(args1, args2):
 
 if __name__ == "__main__":
 
-    dataset1 = "meld"
-    dataset2 = "meld"
+    dataset1 = "iemocap"
+    dataset2 = "iemocap"
     parser1 = argparse.ArgumentParser(description="pretraining_data")
 
     parser1.add_argument(

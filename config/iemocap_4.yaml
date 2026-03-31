@@ -13,7 +13,7 @@ iemocap_4:
   n_valid_utterances: 400
   n_test_dialogues: 31
   n_test_utterances: 943
-  modalities: "atv" # ["a", "t", "v", "at", "tv", "av", "atv"]
+  modalities: "av" # ["a", "t", "v", "at", "tv", "av", "atv"]
 
   do_finetune: false
   from_scratch: false
@@ -24,9 +24,9 @@ iemocap_4:
 
   epochs: 100
   batch_size: 12
-  scheduler: "cosineLR_linearWarmUp" # <- [stepLR,multistepLR, reduceLR, cyclicLR, cosineLR]
-  T: 10 # duration of scheduler
-  learning_rate: 0.00003
+  scheduler: "cosineLR" # <- [stepLR,multistepLR, reduceLR, cyclicLR, cosineLR]
+  T: 15 # duration of scheduler
+  learning_rate: 0.0001
   weight_decay: 0.
 
   do_CE: True
@@ -37,8 +37,8 @@ iemocap_4:
   topk: 3
   temperature: 0.7
 
-  unimodal_lambda: 0.1
-  NACL_lambda: 0.1
+  unimodal_lambda: 0.
+  NACL_lambda: 0.5
   VATT_lambda: 0.1
 
   MIL_lambda : 0.0
@@ -55,8 +55,8 @@ iemocap_4:
 
   multi_hop_max_dist: 51
   encoder_layers: 2 # [2, 3, 4] test
-  encoder_attention_heads: 8  # [4, 6, 8] test , i.e., each head's dim [96, 64, 48]
-  encoder_embed_dim: 512 # [256, 384, 512] test
+  encoder_attention_heads: 6  # [4, 6, 8] test , i.e., each head's dim [96, 64, 48]
+  encoder_embed_dim: 384 # [256, 384, 512] test
   ffn_embed_scaler: 4 # encoder_embed_dim * 4
   sub_classifier_dim: 128
   num_classes: 4

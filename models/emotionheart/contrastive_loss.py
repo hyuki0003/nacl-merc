@@ -344,8 +344,151 @@ class infoNCE_loss(nn.Module):
 #     def forward(self, z1: torch.Tensor, z2: torch.Tensor, z1_all_mask, k, n_classes, mode=None):
 #         return self.semi_loss(z1, z2, z1_all_mask, k, n_classes, mode=mode)
 
-# Version 3
+# # Version 3 Vectorization (Valiation must be required)
+# class NACL_loss(nn.Module):
+#     """
+#     Neighbor Alignment Contrastive Learning (NACL)
+#
+#     Anchor      : z1[:, i, :]   (source modality)
+#     Candidates  : z2[:, n, :]   (target modality)
+#
+#     Positive set for anchor i:
+#         {i} U N_i^(z1)
+#     where N_i^(z1) is the top-k self-excluded neighborhood of z1[:, i, :]
+#     in the source-modality space.
+#
+#     Masks:
+#         z1_mask: (B, N), True = invalid source node (padding / masked)
+#         z2_mask: (B, N), True = invalid target node (padding / masked)
+#     """
+#
+#     def __init__(self, temperature: float = 0.1, similarity: str = "cosine", eps: float = 1e-12):
+#         super().__init__()
+#         assert similarity in {"cosine", "l2"}
+#         self.temperature = temperature
+#         self.similarity = similarity
+#         self.eps = eps
+#
+#     def _normalize(self, z: torch.Tensor) -> torch.Tensor:
+#         return F.normalize(z, p=2, dim=-1, eps=self.eps)
+#
+#     def _pairwise_metric(self, z1: torch.Tensor, z2: torch.Tensor) -> torch.Tensor:
+#         """
+#         Returns pairwise similarity score matrix of shape (B, N, N).
+#
+#         cosine: larger is better
+#         l2    : returns negative distance so that larger is better
+#         """
+#         if self.similarity == "cosine":
+#             z1 = self._normalize(z1)
+#             z2 = self._normalize(z2)
+#             return torch.bmm(z1, z2.transpose(1, 2))
+#         else:
+#             return -torch.cdist(z1, z2, p=2)
+#
+#     def _build_positive_mask(
+#         self,
+#         z1: torch.Tensor,
+#         z1_mask: torch.Tensor,
+#         z2_mask: torch.Tensor,
+#         k: int,
+#     ):
+#         """
+#         Build positive mask of shape (B, N, N) using vectorized operations.
+#         """
+#         B, N, _ = z1.shape
+#         device = z1.device
+#
+#         # valid anchors are determined by z1
+#         valid_anchor = ~z1_mask  # (B, N)
+#         target_valid = ~z2_mask  # (B, N)
+#
+#         # 1) direct cross-modal joint positive: z1[i] -> z2[i]
+#         # (B, N, N) identity-like mask for joint pairs
+#         joint_valid = valid_anchor & target_valid  # (B, N)
+#         eye = torch.eye(N, device=device, dtype=torch.bool).unsqueeze(0)  # (1, N, N)
+#         positive_mask = eye.expand(B, N, N) & joint_valid.unsqueeze(2)
+#
+#         # 2) neighborhood positives: neighbors found in z1
+#         if k > 0 and N > 1:
+#             # KNN distance metric within source modality z1
+#             metric_11 = self._pairwise_metric(z1, z1)  # (B, N, N)
+#
+#             # Exclude invalid source nodes and self
+#             # knn_invalid means either source or target in the 1-1 comparison is invalid, or it's self
+#             knn_invalid = z1_mask.unsqueeze(2) | z1_mask.unsqueeze(1) | eye
+#             metric_11 = metric_11.masked_fill(knn_invalid, -torch.finfo(metric_11.dtype).max)
+#
+#             # Global top-k per anchor
+#             k_b = min(k, N - 1)
+#             topk_indices = torch.topk(metric_11, k=k_b, dim=-1, largest=True).indices  # (B, N, k_b)
+#
+#             # Scatter neighbors into positive mask
+#             neighbor_mask = torch.zeros((B, N, N), dtype=torch.bool, device=device)
+#             neighbor_mask.scatter_(2, topk_indices, True)
+#
+#             # Prune neighbor mask: anchor must be valid source, neighbor must be valid target
+#             neighbor_mask &= valid_anchor.unsqueeze(2)
+#             neighbor_mask &= target_valid.unsqueeze(1)
+#
+#             positive_mask |= neighbor_mask
+#
+#         return positive_mask, valid_anchor
+#
+#     def semi_loss(
+#         self,
+#         z1: torch.Tensor,
+#         z2: torch.Tensor,
+#         z1_mask: torch.Tensor,
+#         z2_mask: torch.Tensor,
+#         k: int,
+#     ) -> torch.Tensor:
+#         """
+#         z1:      (B, N, F), source modality embeddings (anchors + neighbor mining source)
+#         z2:      (B, N, F), target modality embeddings (candidate bank)
+#         z1_mask: (B, N), True = invalid source anchor / source node
+#         z2_mask: (B, N), True = invalid target candidate
+#         """
+#         # logits: anchor = z1_i, candidate = z2_n
+#         logits = self._pairwise_metric(z1, z2) / self.temperature  # (B, N, N)
+#
+#         # build positives from z1-neighborhood + direct joint pair
+#         positive_mask, valid_anchor = self._build_positive_mask(z1, z1_mask, z2_mask, k)
+#
+#         # mask invalid target candidates only
+#         logits = logits.masked_fill(z2_mask.unsqueeze(1), -torch.finfo(logits.dtype).max)
+#
+#         # log-softmax over candidate bank z2
+#         log_prob = F.log_softmax(logits, dim=-1)  # (B, N, N)
+#
+#         # multi-positive soft target
+#         target = positive_mask.float()
+#         pos_count = target.sum(dim=-1, keepdim=True)  # (B, N, 1)
+#
+#         # valid anchors must be valid in z1 and have at least one valid positive in z2
+#         valid_anchor = valid_anchor & (pos_count.squeeze(-1) > 0)
+#
+#         target = target / pos_count.clamp_min(1.0)
+#
+#         # cross-entropy with soft labels
+#         loss = -(target * log_prob).sum(dim=-1)  # (B, N)
+#
+#         if valid_anchor.any():
+#             return loss[valid_anchor].mean()
+#         else:
+#             return logits.new_tensor(0.0)
+#
+#     def forward(
+#         self,
+#         z1: torch.Tensor,
+#         z2: torch.Tensor,
+#         z1_mask: torch.Tensor,
+#         z2_mask: torch.Tensor,
+#         k: int,
+#     ) -> torch.Tensor:
+#         return self.semi_loss(z1, z2, z1_mask, z2_mask, k)
 
+# Version 4
 class NACL_loss(nn.Module):
     """
     Neighbor Alignment Contrastive Learning (NACL)

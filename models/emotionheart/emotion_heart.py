@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(force=True, level=logging.INFO)
 
 
-@register_model("graphormer")
+# @register_model("graphormer")
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
@@ -175,44 +175,6 @@ class EmotionHeartModel(FairseqEncoderModel):
             fused_emb = fused_emb.permute(0, 2, 1, 3).contiguous().view(B, N, -1)
 
         if train:
-            if self.args.do_CLIP:
-                cnt = 0 if self.n_modalities != 1 else 1
-                modals = nodes
-                if not self.args.specific or self.args.hybrid:
-                    modals = nodes.reshape(B, self.n_modalities, N, -1)
-                for i in range(self.n_modalities):
-                    for j in range(self.n_modalities):
-                        if i == j:
-                            continue
-                        cnt += 1
-                        source = modals[:, i, :, :]
-                        target = modals[:, j, :, :]
-                        # source +== self.CLIP_projection(source)
-                        # target +== self.CLIP_projection(target)
-
-                        between_modality_loss += self.CLIPloss(source, target, sim_mask)
-                between_modality_loss /= cnt
-                between_modality_loss *= self.args.CLIP_lambda
-
-            if self.args.do_DGI:
-                if self.args.specific and not self.args.hybrid:
-                    # targets = torch.cat([torch.ones((B,N)), torch.zeros((B,(B-1)*N))], dim=-1).to(nodes.device)
-                    for i in range(self.n_modalities):
-                        m_cls = cls[:, i, :]
-                        m_embed = nodes[:, i, :, :]
-                        # m_cls += self.DGI_projection(m_cls)
-                        # m_embed += self.DGI_projection(m_embed)
-                        within_modality_loss += self.DGIloss(m_cls, m_embed, inverted_mask)
-                    within_modality_loss /= self.n_modalities
-
-                else:
-                    N *= self.n_modalities
-
-                    within_modality_loss += self.DGIloss(cls, nodes, inverted_mask.repeat(1,self.n_modalities))
-
-                within_modality_loss *= self.args.DGI_lambda
-
-
             if self.args.do_NACL:
                 cnt = 0
                 if not self.args.specific:
@@ -225,10 +187,14 @@ class EmotionHeartModel(FairseqEncoderModel):
                         source = nodes[:, i, :, :]
                         target = nodes[:, j, :, :]
 
-                        between_modality_loss += self.NACLloss(source, target, sim_mask, self.args.topk,
-                                                               self.args.num_classes)
+                        between_modality_loss += (self.NACLloss(source,
+                                                    target,
+                                                    mask,
+                                                    mask,
+                                                     self.args.topk))
                 between_modality_loss /= cnt
                 between_modality_loss *= self.args.NACL_lambda
+
 
         if self.args.unimodal_inference:
             if self.args.modalities == 'a':
@@ -288,7 +254,7 @@ class EmotionHeartModel(FairseqEncoderModel):
             cross_entropy_loss = 0.5*nn.functional.cross_entropy(logits, labels, weight=class_weights)
 
         # Total Loss
-        loss = cross_entropy_loss + within_modality_loss + between_modality_loss
+        loss = cross_entropy_loss + between_modality_loss
         # print(f"cross-entropy loss: {cross_entropy_loss}, within-modality loss: {within_modality_loss}, between-modality loss: {between_modality_loss}")
 
         return loss, logits, labels, graphs, fused_emb[inverted_mask, :], org_x[inverted_mask,:]

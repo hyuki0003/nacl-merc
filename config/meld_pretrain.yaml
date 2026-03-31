@@ -34,21 +34,21 @@ meld:
   sub_classifier_dim: 128
   num_classes: 7
 
-  do_NACL: True
-  do_MAE: True
-  do_VATT: False
+  do_NACL: false
+  do_MAE: false
+  do_VATT: true
   do_CE: False
   do_WCE : False
 
-  mask_prob_a: 0.7
-  mask_prob_t: 0.7
-  mask_prob_v: 0.7
+  mask_prob_a: 0.5
+  mask_prob_t: 0.5
+  mask_prob_v: 0.5
 
-  topk: 3
+  topk: 7
   NACL_lambda: 1
   MAE_lambda: 1
 
-  temperature: 0.7
+  temperature: 0.1
   max_grad_value: -1
   dropout: 0.1
   attention_dropout: 0.

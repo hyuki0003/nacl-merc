@@ -15,10 +15,9 @@ iemocap:
   n_test_utterances: 943
   modalities: "atv" # ["a", "t", "v", "at", "tv", "av", "atv"]
 
-  unimodal_inference: false
+  do_finetune: false
   from_scratch: false
-
-  do_finetune: true
+  unimodal_inference: false
 
   hybrid: false
   specific: false

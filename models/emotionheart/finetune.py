@@ -32,7 +32,7 @@ class FinetuneModel(BaseFairseqModel):
                  ):
         super().__init__()
         assert args.encoder_embed_dim == encoder_embed_dim, f"pretrained encoder dim {encoder_embed_dim}, but got {args.encoder_embed_dim}"
-        assert args.modalities == modalities, f"pretrained encoder use modality {modalities}, but got {args.modalities}"
+        # assert args.modalities == modalities, f"pretrained encoder use modality {modalities}, but got {args.modalities}"
 
         self.args = args
         self.pretrained_encoder = None
@@ -76,7 +76,8 @@ class FinetuneModel(BaseFairseqModel):
                 if not name.startswith("encoder"):
                     delattr(self.model, name)
 
-            self.freeze_encoder("encoder.graph_encoder.layers.1")
+            # self.freeze_encoder("encoder.graph_encoder.layers.1")
+            # self.freeze_encoder("encoder.graph_encoder.layers.0")
 
 
         else:
@@ -154,14 +155,14 @@ class FinetuneModel(BaseFairseqModel):
         #      "MISA: Modality-Invariant and -Specific Representations" (ACM MM 2020)
         # Purpose: Force each modality branch to independently learn discriminative features
         #          (prevents Modality Laziness / Imbalance in joint training).
-        if self.n_modalities >1:
-            self.unimodal_classifiers = nn.ModuleList([
-                nn.Sequential(
-                    self.activation,
-                    nn.Dropout(args.dropout),
-                    nn.Linear(args.encoder_embed_dim, args.num_classes)
-                ) for _ in range(self.n_modalities)
-            ])
+        # if self.n_modalities >1:
+        #     self.unimodal_classifiers = nn.ModuleList([
+        #         nn.Sequential(
+        #             self.activation,
+        #             nn.Dropout(args.dropout),
+        #             nn.Linear(args.encoder_embed_dim, args.num_classes)
+        #         ) for _ in range(self.n_modalities)
+        #     ])
 
 
     def freeze_encoder(self,param_name):
@@ -286,21 +287,29 @@ class FinetuneModel(BaseFairseqModel):
                 between_modality_loss *= self.args.NACL_lambda
 
         if self.args.unimodal_inference:
+            D = self.args.encoder_embed_dim
+
             if self.args.modalities == 'a':
-                start_row = 0
-                end_row = self.args.encoder_embed_dim
+                cols = slice(0, D)
             elif self.args.modalities == 't':
-                start_row = self.args.encoder_embed_dim
-                end_row = self.args.encoder_embed_dim*2
+                cols = slice(D, 2 * D)
             elif self.args.modalities == 'v':
-                start_row = self.args.encoder_embed_dim*2
-                end_row = self.args.encoder_embed_dim*3
+                cols = slice(2 * D, 3 * D)
+            elif self.args.modalities == 'at':
+                cols = slice(0, 2 * D)
+            elif self.args.modalities == 'tv':
+                cols = slice(D, 3 * D)
+            elif self.args.modalities == 'av':
+                w = self.linear_fusion[1].weight
+                sliced_weight = torch.cat([w[:, 0:D], w[:, 2 * D:3 * D]], dim=-1)
+                fused_emb = F.linear(fused_emb, sliced_weight, self.linear_fusion[1].bias)
             else:
-                raise NotImplementedError
-            sliced_weight = self.linear_fusion[1].weight[:, start_row:end_row]  # shape: (20, 300)
-            sliced_bias = self.linear_fusion[1].bias # shape: (20,)
-            fused_emb = F.linear(fused_emb, sliced_weight, sliced_bias)
-            fused_emb = self.linear_fusion[2](fused_emb)
+                raise NotImplementedError(f"Unsupported modalities: {self.args.modalities}")
+
+            if self.args.modalities != 'av':
+                sliced_weight = self.linear_fusion[1].weight[:, cols]
+                fused_emb = F.linear(fused_emb, sliced_weight, self.linear_fusion[1].bias)
+
         else:
             fused_emb = self.linear_fusion(fused_emb)
             # fused_emb = torch.stack(graphs, dim=-1)
@@ -348,12 +357,12 @@ class FinetuneModel(BaseFairseqModel):
             # graphs: (Valid_N, D, M)  →  graphs[:, :, i] gives (Valid_N, D) for modality i
             # BugFix: use per-modality graph embedding (not fused_emb), normalize OUTSIDE loop,
             #         multiply by unimodal_lambda (larger lambda = larger contribution, like NACL_lambda).
-            if train and self.n_modalities > 1:
-                unimodal_ce_loss = 0.
-                for i in range(self.n_modalities):
-                    uni_logits = self.unimodal_classifiers[i](fused_emb)[inverted_mask]
-                    unimodal_ce_loss += nn.functional.cross_entropy(uni_logits, labels, weight=class_weights)
-                unimodal_ce_loss = (unimodal_ce_loss / self.n_modalities) * self.args.unimodal_lambda
+            # if train and self.n_modalities > 1:
+            #     unimodal_ce_loss = 0.
+            #     for i in range(self.n_modalities):
+            #         uni_logits = self.unimodal_classifiers[i](fused_emb)[inverted_mask]
+            #         unimodal_ce_loss += nn.functional.cross_entropy(uni_logits, labels, weight=class_weights)
+            #     unimodal_ce_loss = (unimodal_ce_loss / self.n_modalities) * self.args.unimodal_lambda
 
         # Total Loss
         loss = cross_entropy_loss + within_modality_loss + between_modality_loss + unimodal_ce_loss
