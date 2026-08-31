@@ -1,9 +1,19 @@
-torch
-torch-geometric
-scikit-learn
-numpy
-matplotlib
-PyYaML
-seaborn
-transformers
-fairseq
+# Tested with Python 3.9 / CUDA 12.x
+#
+# NOTE: fairseq 0.12.2 depends on omegaconf<2.1, whose wheels carry legacy
+# metadata that pip >= 24.1 rejects. On a fresh environment install with an
+# older pip resolver first:
+#   pip install "pip<24.1"
+#   pip install -r requirements.txt
+torch==2.7.1
+fairseq==0.12.2
+transformers==4.53.3
+scikit-learn==1.6.1
+numpy==2.0.2
+scipy==1.13.1
+PyYAML==6.0.2
+matplotlib==3.9.4
+seaborn==0.13.2
+tqdm==4.67.1
+networkx==3.2.1
+pandas==2.3.1
