@@ -33,7 +33,6 @@ class EmotionHeartModel(FairseqEncoderModel):
     def __init__(self, args, encoder, decoder):
         super().__init__(encoder)
         self.args = args
-        self.x = 0
         if getattr(args, "apply_graphormer_init", False):
             self.apply(init_graphormer_params)
         self.encoder_embed_dim = args.encoder_embed_dim
@@ -44,27 +43,21 @@ class EmotionHeartModel(FairseqEncoderModel):
         if 'a' in args.modalities:
             self.input_projection_a = nn.Sequential(
                 nn.Linear(data_embedding_dims['a'], args.encoder_embed_dim),
-                # self.activation,
-                # nn.Linear(args.encoder_embed_dim, args.encoder_embed_dim)
             )
 
         if 't' in args.modalities:
             self.input_projection_t = nn.Sequential(
                 nn.Linear(data_embedding_dims['t'], args.encoder_embed_dim),
-                # self.activation,
-                # nn.Linear(args.encoder_embed_dim, args.encoder_embed_dim)
             )
 
         if 'v' in args.modalities:
             self.input_projection_v = nn.Sequential(
                 nn.Linear(data_embedding_dims['v'], args.encoder_embed_dim),
-                # self.activation,
-                # nn.Linear(args.encoder_embed_dim, args.encoder_embed_dim)
             )
 
         self.layer_norm = LayerNorm(args.encoder_embed_dim)
-        # Learnable mask token (N(0, 0.02) 정규 분포 초기화, truncation [-2, 2])
 
+        # Learnable mask token: truncated normal N(0, 0.02) on [-2, 2]
         self.mask_token = None
         self.decoder = None
         if args.do_MAE:
@@ -80,7 +73,7 @@ class EmotionHeartModel(FairseqEncoderModel):
 
 
     def mask(self, tensor, pad_mask, mask_ratio=0.15):
-
+        """Randomly select `mask_ratio` of the valid (non-padding) utterance nodes to mask."""
         batch_size, seq_len, emb_dim = tensor.shape[:3]
 
         valid_mask = ~pad_mask
@@ -93,7 +86,7 @@ class EmotionHeartModel(FairseqEncoderModel):
                 continue
 
             mask_count = int(mask_ratio*len_valid_indices)
-            masked_indices = valid_indices[torch.randperm(len(valid_indices))[:mask_count]] # 랜덤 선택
+            masked_indices = valid_indices[torch.randperm(len(valid_indices))[:mask_count]]
             mask[i, masked_indices] = True
 
         return mask
@@ -104,7 +97,10 @@ class EmotionHeartModel(FairseqEncoderModel):
     def pretrain(self, data, n_max_utterances):
         padding_mask = data['mask'].clone()
 
-        encoder_output_all = torch.zeros(self.args.batch_size, n_max_utterances * self.n_modalities,
+        # Batch size must come from the data: the last batch (or a validation
+        # split batched as a whole) can be smaller than args.batch_size.
+        batch_size = padding_mask.shape[0]
+        encoder_output_all = torch.zeros(batch_size, n_max_utterances * self.n_modalities,
                                          self.args.encoder_embed_dim, dtype=torch.float32,
                                          device=data['mask'].device)
 
@@ -189,15 +185,13 @@ class EmotionHeartModel(FairseqEncoderModel):
             't': self.args.mask_prob_t,
             'v': self.args.mask_prob_v
         }
-        total_ratio = sum(modality_ratio.values())  # 0.5 + 0.3 + 0.7 = 1.5
+        total_ratio = sum(modality_ratio.values())
         normalized_loss_weights = {modality: ratio / total_ratio for modality, ratio in modality_ratio.items()}
 
         for i, m in enumerate(self.modalities):
             encoded_all_tokens[m] = encoder_output_all[:,i*n_max_utterances:(i+1)*n_max_utterances,:]
 
-        #
-
-        # Loss 1
+        # Loss 1: Neighbor Alignment Contrastive Learning over all ordered modality pairs
         masked_neighbor_aligned_contrastive_loss = 0.
         if self.args.do_NACL:
             scaler = 0.5 if self.n_modalities == 3 else 1
@@ -207,7 +201,6 @@ class EmotionHeartModel(FairseqEncoderModel):
                         continue
 
                     source_all_mask = padding_mask_all[m_source]
-                    # source_all_mask_sim = source_all_mask.unsqueeze(2) | source_all_mask.unsqueeze(1)
                     target_all_mask = padding_mask_all[m_target]
                     masked_neighbor_aligned_contrastive_loss += (
                                 scaler * normalized_loss_weights[m_source] * self.NACLloss(encoded_all_tokens[m_source],
@@ -216,11 +209,7 @@ class EmotionHeartModel(FairseqEncoderModel):
                                                                                           target_all_mask,
                                                                                           self.args.topk))
 
-        # self.x += 1
-        # if self.x == 10:
-        #     print("stop ", self.x)
-
-        # Loss 2
+        # Loss 2: masked reconstruction of each modality from cross-modal context (MMAE)
         MAE_reconstruction_loss = 0.
         for modality, masked_token in masked_tokens.items():
             m_token_mask = token_mask_all[modality]
@@ -236,14 +225,11 @@ class EmotionHeartModel(FairseqEncoderModel):
 
             attn_mask = m_token_mask_all.unsqueeze(2) | data['mask'].unsqueeze(1)
 
-            # if modality=='v' and self.x==10:
-            #     print("stop")
             reconstructed_token = self.decoder.forward(query, key_value, attn_mask, modality)
             reconstructed_token = reconstructed_token[~m_token_mask_all]
 
             MAE_reconstruction_loss += (F.mse_loss(reconstructed_token, masked_token)*normalized_loss_weights[modality])
 
-        # print(f"MAE loss : {MAE_reconstruction_loss}")
         loss = self.args.NACL_lambda*masked_neighbor_aligned_contrastive_loss + self.args.MAE_lambda*MAE_reconstruction_loss
         return loss
 
@@ -431,32 +417,6 @@ class EmotionHeartEncoder(FairseqEncoder):
                 activation_fn=args.activation_fn,
             )
 
-        ## Concat multimodal graphormer
-        # self.graph_encoder = GraphormerGraphEncoder(
-        #     # < for graphormer
-        #     num_nodes=num_nodes,
-        #     num_speakers=n_max_speakers,
-        #     num_degree=args.num_degree,
-        #     num_edges=args.num_edges,
-        #     num_modalities=self.n_modalities,
-        #     num_spatial=args.max_dist,
-        #     num_edge_dis=args.num_edge_dis,
-        #     edge_type=args.edge_type,
-        #     multi_hop_max_dist=args.multi_hop_max_dist,
-        #     # >
-        #     num_encoder_layers=args.encoder_layers,
-        #     embedding_dim=args.encoder_embed_dim*self.n_modalities,
-        #     ffn_embedding_dim=args.ffn_embed_dim,
-        #     num_attention_heads=args.encoder_attention_heads,
-        #     dropout=args.dropout,
-        #     attention_dropout=args.attention_dropout,
-        #     activation_dropout=args.act_dropout,
-        #     encoder_normalize_before=args.encoder_normalize_before,
-        #     pre_layernorm=args.pre_layernorm,
-        #     apply_graphormer_init=args.apply_graphormer_init,
-        #     activation_fn=args.activation_fn,
-        # )
-
     def forward(self, batched_data, modality, perturb=None, masked_tokens=None, **unused):
 
         graphs = []
@@ -508,19 +468,6 @@ class EmotionHeartEncoder(FairseqEncoder):
                 nodes.append(inner_states[:, 1:, :])
 
             graphs = torch.stack(graphs, dim=1).unsqueeze(2)  # b, m, 1, e
-            # graphs = graphs.mean(dim=1, keepdim=True)
-            # nodes = torch.stack(nodes,dim=1)
-            # b,_,_,e = nodes.shape
-            # nodes = nodes.view(b, -1, e)
-
-            # nodes = torch.stack(nodes, dim=2)
-            # b, u, m, e = nodes.shape
-            # nodes = nodes.view(b,u,-1)
-
-            # u_nodes = torch.stack(nodes, dim=1)
-            # b, m, u, e = u_nodes.shape
-            # u_nodes = u_nodes.view(b,-1, e)
-
             nodes = torch.stack(nodes, dim=1)  # b, m, u, e
             b, _, _, e = nodes.shape
 
@@ -532,22 +479,6 @@ class EmotionHeartEncoder(FairseqEncoder):
         else:
             z = self.graph_encoder(batched_data, perturb=perturb, n_modalities=self.n_modalities)
             z = z[-1].transpose(0, 1)  # b, m*u, e
-
-        # if self.n_modalities == 1:
-        #     batched_data['modality_position'] = None
-
-        # z = torch.cat([graphs, nodes], dim=1)
-
-        # batched_data['x'] = u_nodes
-        #
-        # m_nodes = self.graph_encoder(batched_data, perturb=perturb,n_modalities =self.n_modalities)
-        # m_nodes = m_nodes[-1].transpose(0,1)[:,1:,:]
-        #
-        # z = torch.cat([u_nodes,m_nodes], dim=1).view(b,m*2,u,e).permute(0, 2, 1, 3).contiguous().view(b,u,-1)
-
-        # modality_batched_data['x'] = nodes
-        # z = self.graph_encoder(modality_batched_data, perturb=perturb,n_modalities =self.n_modalities)
-        # z = z[-1].transpose(0, 1)
 
         # project masked tokens only
         if masked_tokens is not None:
@@ -571,7 +502,7 @@ class EmotionHeartDecoder(nn.Module):
 
         self.ffn = nn.Sequential(
             nn.Linear(args.encoder_embed_dim, args.encoder_embed_dim * 4),
-            nn.GELU(),  # GELU 활성화 함수
+            nn.GELU(),
             nn.Linear(args.encoder_embed_dim * 4, args.encoder_embed_dim)
         )
 

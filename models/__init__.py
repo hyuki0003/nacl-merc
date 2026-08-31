@@ -1,10 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-from .Coach_temp import *
 from .emotionheart import *
 from .Coach import *
 from .Optim import *
+
 try:
     import torch
 
@@ -17,4 +17,3 @@ except:
         file=sys.stderr,
         flush=True,
     )
-
