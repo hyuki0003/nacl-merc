@@ -1,0 +1,73 @@
+# Stage-1 configuration for the MELD from-scratch run (paper setting).
+# No pretraining is executed (meld.yaml sets from_scratch: true), but the
+# ENCODER ARCHITECTURE is always taken from the stage-1 config — this file
+# supplies the paper's 4-layer MELD-scratch encoder (matching the released
+# checkpoint: 4 layers, dropout 0.1, pre_layernorm true).
+# Usage:
+#   python main_intradataset.py --dataset meld --pretrain_config config/meld_pretrain_scratch.yaml
+meld:
+
+  seed: 69
+  device: "cuda:0"
+  data_dir_path: "data"
+  save_model_checkpoint: "model_checkpoints/meld"
+  save_analysis_path: "save/analysis/meld"
+
+  n_train_dialogues: 1432
+  n_train_utterances: 13708
+
+  modalities: "atv"
+
+  hybrid: false
+  specific: false
+
+  # No pretraining for the from-scratch run.
+  from_begin: false
+
+  # Optimization (unused when pretraining is skipped; kept for completeness)
+  epochs: 300
+  batch_size: 128
+  scheduler: "cosineLR_linearWarmUp"
+  T: 5
+  learning_rate: 0.0003
+  weight_decay: 0.03
+  max_grad_value: -1
+
+  # Architecture (MELD from-scratch: 4 encoder layers)
+  encoder_layers: 4
+  encoder_attention_heads: 6
+  encoder_embed_dim: 384
+  ffn_embed_scaler: 4 # ffn dim = encoder_embed_dim * 4
+  num_classes: 7
+
+  # Pretraining objectives (unused when pretraining is skipped)
+  do_NACL: true
+  do_MAE: true
+  do_VATT: false
+  do_CE: false
+  do_WCE: false
+
+  mask_prob_a: 0.5
+  mask_prob_t: 0.5
+  mask_prob_v: 0.5
+
+  topk: 3
+  temperature: 0.7
+  NACL_lambda: 1
+  MAE_lambda: 1
+
+  # Regularization (encoder-internal dropout at build time)
+  dropout: 0.1
+  attention_dropout: 0.
+  act_dropout: 0.0
+
+  # Graph encoder
+  centrality: "degree" # [degree, eigen]
+  max_dist: 51
+  num_edge_dis: 51
+  multi_hop_max_dist: 51
+  edge_type: multi_hop # [single_hop, multi_hop]
+  apply_graphormer_init: false
+  activation_fn: "gelu"
+  encoder_normalize_before: true
+  pre_layernorm: true

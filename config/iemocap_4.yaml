@@ -1,73 +1,71 @@
+# IEMOCAP 4-way fine-tuning / evaluation configuration (paper setting).
+# Used as the stage-2 (target) config by main_crossdataset.py and main_intradataset.py.
 iemocap_4:
 
   seed: 69
-  device: "cuda:2"
+  device: "cuda:0"
   data_dir_path: "data"
   save_model_checkpoint: "model_checkpoints/iemocap_4"
   save_analysis_path: "save/analysis/iemocap_4"
-  log_in_comet: False
-  experiment_in_comet: False
+
+  # Dataset statistics (108/12/31 dialogue split)
   n_train_dialogues: 108
   n_train_utterances: 3200
   n_valid_dialogues: 12
   n_valid_utterances: 400
   n_test_dialogues: 31
   n_test_utterances: 943
-  modalities: "av" # ["a", "t", "v", "at", "tv", "av", "atv"]
 
-  do_finetune: false
-  from_scratch: false
-  unimodal_inference: false
+  modalities: "atv" # ["a", "t", "v", "at", "tv", "av", "atv"]
+
+  # Stage control
+  do_finetune: true        # run supervised fine-tuning
+  from_scratch: false      # true: skip pretraining, train encoder from random init
+  unimodal_inference: false # true: missing-modality inference with the saved fine-tuned model
 
   hybrid: false
   specific: false
 
+  # Optimization
   epochs: 100
   batch_size: 12
-  scheduler: "cosineLR" # <- [stepLR,multistepLR, reduceLR, cyclicLR, cosineLR]
-  T: 15 # duration of scheduler
+  scheduler: "cosineLR" # [None, stepLR, multistepLR, reduceLR, cyclicLR, cosineLR, cosineLR_linearWarmUp]
+  T: 15 # scheduler period
   learning_rate: 0.0001
   weight_decay: 0.
+  max_grad_value: -1
 
-  do_CE: True
-  do_WCE : False
+  # Objectives
+  do_CE: true
+  do_WCE: false
   do_VATT: false
-  do_DGI : false
-  do_NACL: true
-  topk: 3
-  temperature: 0.7
-
-  unimodal_lambda: 0.
-  NACL_lambda: 0.5
+  do_DGI: false
+  do_NACL: true           # NACL as auxiliary alignment regularizer during fine-tuning
+  topk: 7                 # NACL neighbors (k)
+  temperature: 0.1        # NACL temperature (tau)
+  NACL_lambda: 0.5        # NACL weight (lambda_con)
   VATT_lambda: 0.1
 
-  MIL_lambda : 0.0
+  # Fine-tuning strategy: full fine-tuning (no frozen encoder blocks) is best for 4-way
+  freeze_prefixes: []
 
-  max_grad_value: -1
+  # Regularization
   dropout: 0.3
   attention_dropout: 0.1
-  emotion: "4class"
-  centrality: "degree"
   act_dropout: 0.0
-  max_nodes: 500
+
+  # Graph encoder
+  encoder_layers: 2
+  encoder_attention_heads: 6
+  encoder_embed_dim: 384
+  ffn_embed_scaler: 4 # ffn dim = encoder_embed_dim * 4
+  num_classes: 4
+  centrality: "degree" # [degree, eigen]
   max_dist: 51
   num_edge_dis: 51
-
   multi_hop_max_dist: 51
-  encoder_layers: 2 # [2, 3, 4] test
-  encoder_attention_heads: 6  # [4, 6, 8] test , i.e., each head's dim [96, 64, 48]
-  encoder_embed_dim: 384 # [256, 384, 512] test
-  ffn_embed_scaler: 4 # encoder_embed_dim * 4
-  sub_classifier_dim: 128
-  num_classes: 4
-
-  do_mask: False
-  do_MIM: False
-
-  edge_type: multi_hop # single_hop, multi_hop
-  share_encoder_input_output_embed: False # share encoder input and output embeddings"
-  no_token_positional_embeddings: False # if set, disables positional embeddings" " (outside self attention)
-  apply_graphormer_init: False # use custom param initialization for Graphormer
-  activation_fn: "gelu"  # activation function to use
-  encoder_normalize_before: True  # apply layernorm before each encoder block
-  pre_layernorm: False
+  edge_type: multi_hop # [single_hop, multi_hop]
+  apply_graphormer_init: false
+  activation_fn: "gelu"
+  encoder_normalize_before: true
+  pre_layernorm: false

@@ -1,74 +1,78 @@
+# MELD intra-dataset (from-scratch) training configuration (paper setting).
+# The model is trained over all 7 MELD labels; the paper's Table 4 reports
+# per-class F1 for the 5 majority classes (fear/disgust excluded from the table).
+# Used as the stage-2 config by main_intradataset.py.
+#
+# NOTE: the ENCODER architecture (layers/heads/dims/internal dropout) is taken
+# from the stage-1 config, even for from-scratch runs. For the paper's 4-layer
+# MELD-scratch encoder, run with:
+#   python main_intradataset.py --dataset meld --pretrain_config config/meld_pretrain_scratch.yaml
+# The encoder_* keys below feed only the classifier head / fusion / NACL losses.
 meld:
 
   seed: 69
-  device: "cuda:2"
+  device: "cuda:0"
   data_dir_path: "data"
   save_model_checkpoint: "model_checkpoints/meld"
   save_analysis_path: "save/analysis/meld"
-  log_in_comet: False
-  experiment_in_comet: False
+
+  # Dataset statistics
   n_train_dialogues: 1039
   n_train_utterances: 9989
   n_valid_dialogues: 114
   n_valid_utterances: 1109
   n_test_dialogues: 280
   n_test_utterances: 2610
+
   modalities: "atv"
 
+  # Stage control
+  do_finetune: true
+  from_scratch: true       # train the encoder from random initialization
   unimodal_inference: false
+
   hybrid: false
   specific: false
 
-  do_finetune: false
-  from_scratch: true
-
+  # Optimization
   epochs: 200
   batch_size: 128
-  scheduler: "cosineLR" # <- [stepLR,multistepLR, reduceLR, cyclicLR, cosineLR]
-  T: 10 # duration of scheduler
+  scheduler: "cosineLR" # [None, stepLR, multistepLR, reduceLR, cyclicLR, cosineLR, cosineLR_linearWarmUp]
+  T: 10 # scheduler period
   learning_rate: 0.0001
   weight_decay: 0.
+  max_grad_value: -1
 
-  encoder_layers: 4 # [2, 3, 4] test
-  encoder_attention_heads: 6  # [4, 6, 8] test , i.e., each head's dim [96, 64, 48]
-  encoder_embed_dim: 384 # [256, 384, 512] test
-  ffn_embed_scaler: 4 # encoder_embed_dim * 4
-  sub_classifier_dim: 128
-  num_classes: 5
-
-  do_CE: True
-  do_WCE : False
+  # Objectives
+  do_CE: true
+  do_WCE: false
   do_VATT: false
-  do_DGI : false
-  do_NACL: True
-  topk: 3
-  temperature: 0.7
-
-  unimodal_lambda: 0.
-  NACL_lambda: 0.5
+  do_DGI: false
+  do_NACL: true           # NACL as auxiliary alignment regularizer
+  topk: 3                 # NACL neighbors (k)
+  temperature: 0.7        # NACL temperature (tau)
+  NACL_lambda: 0.5        # NACL weight (lambda_con)
   VATT_lambda: 0.1
 
-  MIL_lambda : 0.0
+  freeze_prefixes: []
 
-  max_grad_value: -1
+  # Regularization
   dropout: 0.3
   attention_dropout: 0.1
-  emotion: "4class"
-  centrality: "degree"
   act_dropout: 0.0
-  max_nodes: 500
+
+  # Graph encoder
+  encoder_layers: 4
+  encoder_attention_heads: 6
+  encoder_embed_dim: 384
+  ffn_embed_scaler: 4 # ffn dim = encoder_embed_dim * 4
+  num_classes: 7
+  centrality: "degree" # [degree, eigen]
   max_dist: 51
   num_edge_dis: 51
-
   multi_hop_max_dist: 51
-
-  do_mask: False
-  do_MIM: False
-
-  edge_type: multi_hop # single_hop, multi_hop
-  share_encoder_input_output_embed: False # share encoder input and output embeddings"
-  no_token_positional_embeddings: False # if set, disables positional embeddings" " (outside self attention)
-  apply_graphormer_init: False # use custom param initialization for Graphormer
-  activation_fn: "gelu"  # activation function to use
-  encoder_normalize_before: True  # apply layernorm before each encoder block
-  pre_layernorm: False
+  edge_type: multi_hop # [single_hop, multi_hop]
+  apply_graphormer_init: false
+  activation_fn: "gelu"
+  encoder_normalize_before: true
+  pre_layernorm: false

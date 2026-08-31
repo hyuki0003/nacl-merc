@@ -1,10 +1,8 @@
-# MELD self-supervised pretraining configuration (MMAE + NACL, paper setting).
-# Used as the stage-1 (source) config by main_crossdataset.py.
-#
-# NOTE: values below are the IEMOCAP 4-way transfer setting (mask 0.5, topk 7,
-# temperature 0.1). For the IEMOCAP 6-way transfer, use
-# config/meld_pretrain_6way.yaml via --pretrain_config (mask 0.7, topk 3,
-# temperature 0.7 — Table 1).
+# MELD self-supervised pretraining configuration for the IEMOCAP 6-way transfer
+# (MMAE + NACL, paper setting: mask 0.7, top-k 3, temperature 0.7 — Table 1).
+# Usage:
+#   python main_crossdataset.py --pretrain_dataset meld --finetune_dataset iemocap \
+#       --pretrain_config config/meld_pretrain_6way.yaml
 meld:
 
   seed: 69
@@ -50,13 +48,13 @@ meld:
   do_CE: false
   do_WCE: false
 
-  # Node masking ratio (p) per modality
-  mask_prob_a: 0.5
-  mask_prob_t: 0.5
-  mask_prob_v: 0.5
+  # Node masking ratio (p) per modality — 6-way setting
+  mask_prob_a: 0.7
+  mask_prob_t: 0.7
+  mask_prob_v: 0.7
 
-  topk: 7            # NACL neighbors (k)
-  temperature: 0.1   # NACL temperature (tau)
+  topk: 3            # NACL neighbors (k) — 6-way setting
+  temperature: 0.7   # NACL temperature (tau) — 6-way setting
   NACL_lambda: 1     # NACL weight (lambda_con)
   MAE_lambda: 1      # MMAE reconstruction weight
 
