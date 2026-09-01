@@ -29,6 +29,16 @@ To address this issue, we propose a self-supervised heterogeneous graph represen
 
 **Framework at a glance.** Each dialogue is modeled as a heterogeneous graph with one node per modality (audio / text / visual) per utterance, connected by intra-speaker, inter-speaker, and inter-modality relations. A unified Heterogeneous Graph Transformer encoder (Graphormer-style) encodes it via Entity Encoding (position, speaker, modality, degree embeddings) and Structure Encoding (shortest-path spatial bias and edge-relation attribute bias). The encoder is pretrained with `L_pretrain = L_mse (MMAE) + λ_con · L_con (NACL)`; for transfer, the decoder is discarded and a linear-fusion classifier is fine-tuned with `L_sup + λ_con · L_con`, i.e., NACL also serves as an auxiliary alignment regularizer.
 
+<table border="0">
+  <tr>
+    <td align="center">
+      <img src="imgs/arch.png" alt="Architecture" width="100%">
+      <br>
+      <em>Figure 1: Overall Architecture</em>
+    </td>
+  </tr>
+</table>
+
 ---
 
 ## 🗂️ Repository Structure
