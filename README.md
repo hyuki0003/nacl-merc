@@ -16,6 +16,7 @@
 ---
 
 ## 📢 News
+
 * **[Aug. 2026]** 🚀 The official code released!
 * **[Aug. 2026]** 📝 Our paper **"Cross-Modal Alignment for Robust Multimodal Fusion in Conversational Emotion Recognition"** was submitted to **Expert Systems with Applications** on **August 11, 2026** and is currently **under review**.
 
@@ -29,12 +30,14 @@ To address this issue, we propose a self-supervised heterogeneous graph represen
 
 **Framework at a glance.** Each dialogue is modeled as a heterogeneous graph with one node per modality (audio / text / visual) per utterance, connected by intra-speaker, inter-speaker, and inter-modality relations. A unified Heterogeneous Graph Transformer encoder (Graphormer-style) encodes it via Entity Encoding (position, speaker, modality, degree embeddings) and Structure Encoding (shortest-path spatial bias and edge-relation attribute bias). The encoder is pretrained with `L_pretrain = L_mse (MMAE) + λ_con · L_con (NACL)`; for transfer, the decoder is discarded and a linear-fusion classifier is fine-tuned with `L_sup + λ_con · L_con`, i.e., NACL also serves as an auxiliary alignment regularizer.
 
+<br>
+
 <table border="0">
   <tr>
     <td align="center">
       <img src="imgs/arch.png" alt="Architecture" width="100%">
       <br>
-      <em>Figure 1: Overall Architecture</em>
+      <em>Overall Architecture</em>
     </td>
   </tr>
 </table>
@@ -155,6 +158,8 @@ Any subset of `{a, t, v}` is supported (`a`, `t`, `v`, `at`, `tv`, `av`).
 
 ## 🕹 Key hyperparameters (also documented in `config/*.yaml`)
 
+<br>
+
 | Hyperparameter | MELD: Scratch | MELD: Pretrain for 4-way / 6-way | IEMOCAP 4-way: Scratch / Transfer | IEMOCAP 6-way: Scratch / Transfer |
 |---|---:|---:|---:|---:|
 | **Architecture** |  |  |  |  |
@@ -188,6 +193,8 @@ The experiments use two Multimodal Emotion Recognition in Conversation (MERC) be
 - **IEMOCAP:** evaluated under 4-way and 6-way emotion classification settings, including MELD-to-IEMOCAP transfer.
 - **Primary metric:** weighted F1 score (**w.F1**), reported in percent unless otherwise stated.
 
+<br>
+
 **Overall experimental summary:**
 
 - **IEMOCAP 4-way:** 84.7 w.F1, outperforming the strongest baseline by 0.2 percentage points.
@@ -197,6 +204,33 @@ The experiments use two Multimodal Emotion Recognition in Conversation (MERC) be
 - **Efficiency:** NACL-only retains the same 4.13M parameters as CLIP while improving transfer performance.
 - **Alignment:** NACL substantially improves Linear CKA and reduces the between-modal representation gap.
 - **Missing modalities:** MMAE + NACL strengthens audio and visual prediction and achieves the best full-modality result.
+
+<br>
+
+<table border="0">
+  <tr>
+    <td align="center">
+      <img src="imgs/modality_alignment.png" alt="modality_alignment" width="100%">
+      <br>
+      <em>Visualize modality alignment under different pretraining objectives on MELD dataset</em>
+    </td>
+  </tr>
+</table>
+
+<table border="0">
+  <tr>
+    <td align="center">
+      <img src="imgs/cd_IEMOCAP_4.png" alt="IEMOCAP 4-way" width="100%">
+      <br>
+      <em>Visualize cross-modal alignment on IEMOCAP 4-way</em>
+    </td>
+    <td align="center">
+      <img src="imgs/cd_IEMOCAP_6.png" alt="IEMOCAP 6-way" width="100%">
+      <br>
+      <em>Visualize cross-modal alignment on IEMOCAP 6-way</em>
+    </td>
+  </tr>
+</table>
 
 <br>
 
@@ -211,6 +245,8 @@ The experiments use two Multimodal Emotion Recognition in Conversation (MERC) be
 
 <details>
 <summary><strong>Performance comparison on IEMOCAP 4-way</strong></summary>
+
+<br>
 
 | Method | Year | Architecture | Happy | Sad | Neutral | Angry | **w.F1** |
 |---|---:|---|---:|---:|---:|---:|---:|
@@ -235,6 +271,8 @@ The experiments use two Multimodal Emotion Recognition in Conversation (MERC) be
 
 <details>
 <summary><strong>Performance comparison on IEMOCAP 6-way</strong></summary>
+
+<br>
 
 | Method | Year | Architecture | Happy | Sad | Neutral | Angry | Excited | Frustrated | **w.F1** |
 |---|---:|---|---:|---:|---:|---:|---:|---:|---:|
@@ -262,6 +300,8 @@ The experiments use two Multimodal Emotion Recognition in Conversation (MERC) be
 <details>
 <summary><strong>Performance comparison on MELD</strong></summary>
 
+<br>
+
 | Method | Year | Architecture | Neutral | Surprise | Sad | Joy | Angry | **w.F1** |
 |---|---:|---|---:|---:|---:|---:|---:|---:|
 | MVN | 2022 | Sequence | 76.7 | 53.2 | 21.8 | 53.6 | 42.6 | 59.0 |
@@ -277,9 +317,11 @@ The experiments use two Multimodal Emotion Recognition in Conversation (MERC) be
 
 **Finding.** The proposed model achieves the best overall result at **68.8 w.F1**, improving over the strongest baseline by **1.6 percentage points**.
 
----
-
 </details>
+
+<br>
+
+---
 
 <br>
 
@@ -292,6 +334,8 @@ The experiments use two Multimodal Emotion Recognition in Conversation (MERC) be
 
 <details>
 <summary><strong>Ablation of heterogeneous graph encodings</strong></summary>
+
+<br>
 
 | No. | Position | Speaker | Modality | Degree | Spatial | Attribute | **4-way w.F1 (Delta)** | **6-way w.F1 (Delta)** |
 |---:|:---:|:---:|:---:|:---:|:---:|:---:|---:|---:|
@@ -316,6 +360,8 @@ The experiments use two Multimodal Emotion Recognition in Conversation (MERC) be
 <details>
 <summary><strong>Fine-tuning strategies</strong></summary>
 
+<br>
+
 | Fine-Tuning Strategy | **IEMOCAP 4-way w.F1** | **IEMOCAP 6-way w.F1** |
 |---|---:|---:|
 | Backbone Frozen* | 81.70 | 70.46 |
@@ -336,7 +382,9 @@ The experiments use two Multimodal Emotion Recognition in Conversation (MERC) be
 **Experiment.** NACL and MMAE are compared with supervised-only training and conventional CLIP-style cross-modal contrastive pretraining in both scratch and transfer settings.
 
 <details>
-<summary><strong>Ablation of training objectives</strong></summary>
+<summary><strong>Ablation of aligned multimodal embeddings under different pretraining objectives</strong></summary>
+
+<br>
 
 | Setting | Objective / Pretraining Method | **4-way w.F1** | 4-way Avg. ACC | **6-way w.F1** | 6-way Avg. ACC |
 |---|---|---:|---:|---:|---:|
@@ -354,6 +402,17 @@ Key gains in w.F1:
 - MMAE-only -> NACL-only: **+0.59 / +0.19**.
 - NACL-only -> MMAE + NACL: **+0.95 / +1.12**.
 - CLIP -> MMAE + NACL: **+2.98 / +1.95**.
+
+<table border="0">
+  <tr>
+    <td align="center">
+      <img src="imgs/modality_alignment.png" alt="modality_alignment" width="100%">
+      <br>
+      <em>Visualize modality alignment under different pretraining objectives on MELD dataset</em>
+    </td>
+  </tr>
+</table>
+
 
 **Finding.** NACL-only outperforms both CLIP and MMAE-only in the transfer setting. MMAE + NACL performs best overall, supporting the complementary roles of neighborhood alignment and masked cross-modal reconstruction.
 
@@ -373,6 +432,8 @@ Key gains in w.F1:
 <details>
 <summary><strong>Cross-modal alignment metrics</strong></summary>
 
+<br>
+
 | Dataset | Metric | Input Data | CLIP | MMAE only | NACL only | MMAE + NACL |
 |---|---|---:|---:|---:|---:|---:|
 | IEMOCAP 4-way | Linear CKA ↑ | 0.11 ± 0.14 | 0.46 ± 0.11 | 0.42 ± 0.08 | 0.77 ± 0.12 | **0.82 ± 0.07** |
@@ -387,6 +448,21 @@ Key gains in w.F1:
 \* The paper displays an upward arrow for Within-modal L2, while its table note states that lower values indicate compactness. The authors do not interpret this metric as simply "lower is better": an excessively small value, particularly with high variance and a large between-modal gap, may indicate modality collapse.
 
 All values are averaged across modality pairs or across the three modalities, as applicable.
+
+<table border="0">
+  <tr>
+    <td align="center">
+      <img src="imgs/cd_IEMOCAP_4.png" alt="IEMOCAP 4-way" width="100%">
+      <br>
+      <em>Visualize cross-modal alignment on IEMOCAP 4-way</em>
+    </td>
+    <td align="center">
+      <img src="imgs/cd_IEMOCAP_6.png" alt="IEMOCAP 6-way" width="100%">
+      <br>
+      <em>Visualize cross-modal alignment on IEMOCAP 6-way</em>
+    </td>
+  </tr>
+</table>
 
 **Main observations:**
 
@@ -409,6 +485,8 @@ All values are averaged across modality pairs or across the three modalities, as
 
 <details>
 <summary><strong>Missing-modality inference</strong></summary>
+
+<br>
 
 | Available Modalities | CLIP | MMAE only | NACL only | **MMAE + NACL** |
 |---|---:|---:|---:|---:|
